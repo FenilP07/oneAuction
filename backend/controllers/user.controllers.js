@@ -182,4 +182,39 @@ const logOutUser = asyncHandler(async (req, res) => {
     .json(new APIResponse(200, {}, "User logged out successfully."));
 });
 
-export { registerUser, loginUser, logOutUser };
+// get user data by id and populate profile
+const getUserById = asyncHandler(async (req, res) => {
+  const userId = req.params.id;
+  if (!userId) {
+    throw new apiError(400, "userId is required");
+  }
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+  const profile = await UserProfile.findOne({ user: user._id });
+  if (!profile) {
+    throw new apiError(404, "User profile not found");
+  }
+  const completeUserData = {
+    user,
+    profile: profile,
+  };
+
+  logger.info("User data fetrched", {
+    userId: user._id,
+    username: user.username,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new APIResponse(
+        200,
+        { user: completeUserData },
+        "User data fetched successfully"
+      )
+    );
+});
+
+export { registerUser, loginUser, logOutUser, getUserById };
