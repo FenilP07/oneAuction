@@ -1,11 +1,8 @@
-# Node.js dependencies
-node_modules/
-npm-debug.log
-yarn-error.log
-yarn.lock
-package-lock.json
+# Node.js dependencies in backend and frontend
+backend/node_modules/
+frontend/node_modules/
 
-# Environment variables
+# Other common ignores
 .env
 .env.local
 .env.development
@@ -19,35 +16,19 @@ dist/
 out/
 
 # Logs
+backend/app.log
 *.log
 logs/
-*.log.*
 
 # OS and editor files
 .DS_Store
 .vscode/
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.swp
 
-# Testing
-coverage/
-*.test
-*.spec
-
-# Dependency directories
-backend/node_modules/
-frontend/node_modules/
-
-# Local development
-*.local
-*.cache
+# Prettier
+.prettierrc
+.prettierignore
 
 # Miscellaneous
 *.bak
 *.tmp
-temp/
-tmp/
