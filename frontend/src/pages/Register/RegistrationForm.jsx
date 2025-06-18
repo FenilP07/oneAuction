@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FormInput from '../../components/FormInput.jsx';
 import Button from '../../components/Button.jsx';
+import Spinner from '../../components/Spinner.jsx'; // ✅ Import spinner
 import validateForm from '../../utils/validateForm.js';
 import { registerUser } from '../../services/userService.js';
 import '../Register/register.css';
@@ -18,8 +19,8 @@ const RegistrationForm = () => {
 
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // Add loading state
-  const navigate = useNavigate(); // For redirect after success
+  const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.title = 'OneAuction - Register';
@@ -27,7 +28,7 @@ const RegistrationForm = () => {
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrors({ ...errors, [e.target.name]: '' }); // Clear field-specific error on change
+    setErrors({ ...errors, [e.target.name]: '' });
   };
 
   const handleSubmit = async (e) => {
@@ -40,18 +41,19 @@ const RegistrationForm = () => {
 
     if (Object.keys(validationErrors).length === 0) {
       try {
-        const response = await registerUser(formData); // Call the API function
+        const response = await registerUser(formData);
         setMessage(
           <div className="text-success text-center mb-3">
             {response.message || 'Registration successful! Redirecting to login...'}
           </div>
         );
-        setTimeout(() => navigate('/login'), 2000); // Redirect to login after 2 seconds
+        setTimeout(() => navigate('/login'), 2000);
       } catch (error) {
         const msg = error.response?.data?.message || 'Registration failed. Please try again.';
         setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
       }
     }
+
     setIsLoading(false);
   };
 
@@ -72,7 +74,6 @@ const RegistrationForm = () => {
               onChange={handleChange}
               error={errors.firstName}
             />
-
             <FormInput
               label="Last Name*"
               id="lastName"
@@ -109,7 +110,6 @@ const RegistrationForm = () => {
             onChange={handleChange}
             error={errors.password}
           />
-
           <FormInput
             label="Confirm Password*"
             id="confirmPassword"
@@ -126,9 +126,16 @@ const RegistrationForm = () => {
             <Button
               type="submit"
               className="btn btn-info btn-register d-flex align-items-center"
-              disabled={isLoading} // Disable button while loading
+              disabled={isLoading}
             >
-              {isLoading ? 'Registering...' : 'Register'}
+              <>
+                Register
+                {isLoading && (
+                  <span className="ms-2">
+                    <Spinner />
+                  </span>
+                )}
+              </>
             </Button>
           </div>
 
