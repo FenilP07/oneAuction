@@ -36,9 +36,14 @@ const Login = () => {
     if (Object.keys(validationErrors).length === 0) {
       try {
         const response = await loginUser(formData);
-        const { accessToken } = response.data;
+        console.log("Login response:", response);
+        const accessToken = response.data.user.accessToken;
+        if (!accessToken) {
+          throw new Error("Access token not found in response");
+        }
         setAuthToken(accessToken);
         localStorage.setItem("accessToken", accessToken);
+        console.log("Access token set in localStorage:", accessToken);
         setMessage(
           <div className="text-success text-center mb-3">
             {response.message || "Login successful! Redirecting ..."}
@@ -46,8 +51,11 @@ const Login = () => {
         );
         setTimeout(() => navigate("/dashboard"), 2000);
       } catch (error) {
+        console.error("Login error:", error);
         const msg =
-          error.response?.data?.message || "Login failed. Please try again.";
+          error.response?.data?.message ||
+          error.message ||
+          "Login failed. Please try again.";
         setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
         setIsLoading(false);
       }
@@ -59,7 +67,6 @@ const Login = () => {
   return (
     <section className="register-page">
       {" "}
-      {/* Changed className for consistency */}
       <form className="login-form" onSubmit={handleSubmit} noValidate>
         <section className="logo-container text-center">
           <h3>Login</h3>
@@ -90,7 +97,7 @@ const Login = () => {
           <div className="login-actions d-flex flex-column justify-content-between align-items-center">
             <Button
               type="submit"
-              className="btn btn-info btn-login d-flex align-items-center" // Changed class for consistency
+              className="btn btn-info btn-login d-flex align-items-center"
               disabled={isLoading}
             >
               {isLoading ? "Logging in..." : "Login"}
