@@ -50,3 +50,10 @@
 {"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":530.103}","timestamp":"2025-06-13T22:00:01.219Z"}
 {"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":684.861}","timestamp":"2025-06-13T22:00:02.643Z"}
 {"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":574.06}","timestamp":"2025-06-13T22:01:16.788Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":500.756}","timestamp":"2025-06-13T22:28:05.294Z"}
+{"level":"error","message":"Invalid email/username or password.","stack":"Error: Invalid email/username or password.\n    at file:///C:/Users/rajpa/Documents/Term4/oneAuction/backend/utils/asyncHandler.js:6:10","statusCode":500,"timestamp":"2025-06-13T22:28:24.235Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"500\",\"responseTime\":319.902}","timestamp":"2025-06-13T22:28:24.237Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":458.551}","timestamp":"2025-06-13T22:28:32.417Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":498.721}","timestamp":"2025-06-13T22:28:40.518Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":495.242}","timestamp":"2025-06-13T22:29:12.135Z"}
+{"level":"info","message":"{\"method\":\"POST\",\"url\":\"/api/user/login\",\"status\":\"200\",\"responseTime\":464.491}","timestamp":"2025-06-13T22:29:15.767Z"}
