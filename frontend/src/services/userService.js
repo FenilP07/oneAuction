@@ -1,4 +1,3 @@
-// src/services/userService.js
 import axios from "axios";
 
 const CLIENT_API = import.meta.env.CLIENT_API || "http://localhost:3000/api";
@@ -96,6 +95,42 @@ export const loginUser = async (formData) => {
       error.response?.data?.message ||
       "Login failed. Please check your credentials.";
     console.error("Login error:", message);
+    throw new Error(message);
+  }
+};
+
+/**
+ * Requests a password reset link for a user.
+ */
+export const requestPasswordReset = async (formData) => {
+  try {
+    console.log("Requesting password reset for:", formData);
+    const response = await apiClient.post("/user/forgot-password", formData);
+    console.log("Password reset request successful:", response.data);
+    return response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      "Failed to send reset email. Please try again.";
+    console.error("Password reset request error:", message);
+    throw new Error(message);
+  }
+};
+
+/**
+ * Resets a user’s password using a token.
+ */
+export const resetPassword = async (formData) => {
+  try {
+    console.log("Resetting password with:", formData);
+    const response = await apiClient.post("/user/reset-password", formData);
+    console.log("Password reset successful:", response.data);
+    return response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      "Failed to reset password. Please try again.";
+    console.error("Password reset error:", message);
     throw new Error(message);
   }
 };
