@@ -6,6 +6,8 @@ import { APIResponse } from "../utils/apiResponse.js";
 import { generateRandomUsername } from "../utils/randomUsername.js";
 import logger from "../utils/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
+import { sendPasswordResetEmail } from "../utils/emailService.js";
+
 
 /**
  * @desc Registers a new user with profile creation
@@ -244,4 +246,90 @@ const getUserById = asyncHandler(async (req, res) => {
   );
 });
 
-export { registerUser, loginUser, logOutUser, getUserById };
+/**
+ * @desc Request password reset by sending reset link via email
+ * @route POST /api/user/request-password-reset
+ */
+const requestPasswordReset = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new apiError(400, "Email is required.");
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new apiError(404, "No account registered with this email.");
+  }
+
+  const resetToken = generateAccessToken(user._id, user.role); 
+  const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+
+  // Store token & expiry in DB
+  user.passwordResetToken = resetToken;
+  user.passwordResetExpires = Date.now() + 15 * 60 * 1000; // 15 minutes expiry
+  await user.save({ validateBeforeSave: false });
+
+  // Send email
+  await sendPasswordResetEmail({
+    email: user.email,
+    name: user.username,
+    resetToken,
+    resetUrl,
+  });
+
+  logger.info("Password reset email sent", { userId: user._id, email });
+
+  return res.status(200).json(
+    new APIResponse(200, null, "Password reset email sent successfully.")
+  );
+});
+
+/**
+ * @desc Reset password using reset token
+ * @route POST /api/user/reset-password
+ */
+const resetPassword = asyncHandler(async (req, res) => {
+  const { resetToken, newPassword, confirmNewPassword } = req.body;
+
+  if (!resetToken || !newPassword || !confirmNewPassword) {
+    throw new apiError(400, "All fields are required.");
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    throw new apiError(400, "Passwords do not match.");
+  }
+
+  const user = await User.findOne({
+    passwordResetToken: resetToken,
+    passwordResetExpires: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new apiError(400, "Invalid or expired reset token.");
+  }
+
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    throw new apiError(
+      400,
+      "Password must contain uppercase, lowercase, number, special character and be at least 8 characters long."
+    );
+  }
+
+  // Update password
+  user.password = newPassword;
+  user.passwordResetToken = null;
+  user.passwordResetExpires = null;
+  await user.save();
+
+  logger.info("Password reset successful", { userId: user._id });
+
+  return res.status(200).json(
+    new APIResponse(200, null, "Password has been reset successfully.")
+  );
+});
+
+
+export { registerUser, loginUser, logOutUser, getUserById, requestPasswordReset, resetPassword};
