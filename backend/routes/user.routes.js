@@ -4,6 +4,8 @@ import {
   loginUser,
   logOutUser,
   getUserById,
+  requestPasswordReset,
+  resetPassword,
 } from "../controllers/user.controllers.js";
 import { refreshAccessTokenMiddleware } from "../middlewares/refreshToken.middlewares.js";
 
@@ -16,6 +18,8 @@ router.get("/:id", getUserById);
 
 //protected routes
 router.post("/logout", logOutUser);
+router.post("/request-password-reset", requestPasswordReset);
+router.post("/reset-password", resetPassword);
 router.get("/refresh-token", refreshAccessTokenMiddleware, (req, res) => {
   return res.status(200).json({
     accessToken: req.newAccessToken,
