@@ -1,48 +1,34 @@
-# Node modules
-/node_modules/
+# Node.js dependencies in backend and frontend
+backend/node_modules/
+frontend/node_modules/
 
-# Environment files
+# Other common ignores
 .env
-.env.*       # for things like .env.production or .env.local
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build outputs
+backend/build/
+frontend/build/
+dist/
+out/
 
 # Logs
-app.log
-/app.log
-*.log        # any other log files
+backend/app.log
+*.log
+logs/
 
-# OS / IDE files
-.DS_Store    # macOS
-Thumbs.db    # Windows
-*.swp        # vim
-.vscode/     # VS Code settings (optional)
-.idea/       # WebStorm/IntelliJ settings
+# OS and editor files
+.DS_Store
+.vscode/
+.idea/
 
-# Dependency folders
-/npm-debug.log*
-/yarn-debug.log*
-/yarn-error.log*
+# Prettier
+.prettierrc
+.prettierignore
 
-# Build/output folders
-/dist/
-/build/
-/coverage/
-
-# Uploads or user-generated content
-public/uploads/
-tmp/
-temp/
-uploads/
-
-# Optional: PM2 logs and dumps
-pids
-*.pid
-*.seed
-*.pid.lock
-dump.rdb
-
-# Optional: testing and coverage
-coverage/
-*.lcov
-
-# Optional: TypeScript
-*.tsbuildinfo
+# Miscellaneous
+*.bak
+*.tmp

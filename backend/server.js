@@ -6,16 +6,6 @@ import logger from "./utils/logger.js";
 dotenv.config({});
 
 const PORT = process.env.PORT || 7001;
-import cors from "cors";
-
-// app.use(
-//   cors({
-//     origin: "http://localhost:5173",
-//     credentials: true,               
-//   })
-// );
-
-
 
 connectDB()
   .then(() => {

@@ -4,18 +4,16 @@ import logger from "./utils/logger.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import { errorHandler } from "./middlewares/error.middlewares.js";
-import userRoutes from "./routes/user.routes.js"
-
+import userRoutes from "./routes/user.routes.js";
+import dotenv from "dotenv";
 const app = express();
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173", // ⬅️ front-end URL
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true,
-        allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
-
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -40,7 +38,7 @@ app.use(
   })
 );
 
-app.use("/api/user",userRoutes);
+app.use("/api/user/", userRoutes);
 
 app.use(errorHandler);
 export { app };

@@ -29,6 +29,7 @@
     "mongoose-aggregate-paginate-v2": "^1.1.4",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
+    "nodemailer": "^7.0.3",
     "winston": "^3.17.0"
   }
 }

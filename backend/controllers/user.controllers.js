@@ -12,34 +12,43 @@ import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
  * @route POST /api/user/register
  */
 const registerUser = asyncHandler(async (req, res) => {
+  logger.info("Register request received", { body: req.body });
+
   const { firstName, lastName, email, username, password, confirmPassword } =
     req.body;
 
   if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    logger.warn("Registration failed: Missing fields");
     throw new apiError(400, "All required fields must be provided.");
   }
 
   if (password !== confirmPassword) {
+    logger.warn("Registration failed: Passwords do not match");
     throw new apiError(400, "Passwords do not match.");
   }
 
   const passwordRegex =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
   if (!passwordRegex.test(password)) {
+    logger.warn("Registration failed: Password does not meet complexity");
     throw new apiError(
       400,
       "Password must contain uppercase, lowercase, number, special character and be at least 8 characters long."
     );
   }
 
-  // Generate username if not provided
   const finalUsername =
     username || (await generateRandomUsername(firstName, lastName));
+
   const existingUser = await User.findOne({
     $or: [{ email }, { username: finalUsername }],
   });
 
   if (existingUser) {
+    logger.warn("Registration failed: Email or username already in use", {
+      email,
+      finalUsername,
+    });
     throw new apiError(409, "Email or username already in use.");
   }
 
@@ -56,7 +65,11 @@ const registerUser = asyncHandler(async (req, res) => {
     avatarUrl: "https://example.com/default-avatar.png",
   });
 
-  logger.info("New user registered", { userId: newUser._id });
+  logger.info("New user registered", {
+    userId: newUser._id,
+    email: newUser.email,
+    username: newUser.username,
+  });
 
   return res.status(201).json(
     new APIResponse(
@@ -83,35 +96,36 @@ const registerUser = asyncHandler(async (req, res) => {
  * @desc Logs in a user and returns access and refresh tokens
  * @route POST /api/user/login
  */
-
 const loginUser = asyncHandler(async (req, res) => {
+  logger.info("Login request received", { identifier: req.body.identifier });
+
   const { identifier, password } = req.body;
 
   if (!identifier || !password) {
+    logger.warn("Login failed: Missing identifier or password");
     throw new apiError(400, "Identifier and password are required.");
   }
 
-  // find user by email or username
   const user = await User.findOne({
     $or: [{ email: identifier }, { username: identifier }],
   });
 
   if (!user || !(await user.comparePassword(password))) {
+    logger.warn("Login failed: Invalid credentials", { identifier });
     throw new apiError(401, "Invalid email/username or password.");
   }
 
   if (user.status !== "active") {
+    logger.warn("Login blocked: User not active", { userId: user._id });
     throw new apiError(403, "Account is not active.");
   }
 
   const profile = await UserProfile.findOne({ user: user._id });
   if (!profile) {
+    logger.error("Login error: Profile not found", { userId: user._id });
     throw new apiError(500, "User profile not found.");
   }
 
-  // Generate JWT tokens for authentication
-  // Access token: short-lived, used for API requests
-  // Refresh token: long-lived, used to generate new access tokens
   const accessToken = generateAccessToken(user._id, user.role);
   const refreshToken = generateRefreshToken(user._id);
 
@@ -119,12 +133,16 @@ const loginUser = asyncHandler(async (req, res) => {
   user.lastLogin = new Date();
   await user.save({ validateBeforeSave: false });
 
-  // Set refresh token as HTTP-only cookie for security
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  logger.info("User logged in successfully", {
+    userId: user._id,
+    username: user.username,
   });
 
   return res.status(200).json(
@@ -150,4 +168,80 @@ const loginUser = asyncHandler(async (req, res) => {
   );
 });
 
-export { registerUser, loginUser };
+/**
+ * @desc Logs out a user by clearing the refresh token cookie
+ * @route POST /api/user/logout
+ */
+const logOutUser = asyncHandler(async (req, res) => {
+  logger.info("Logout request received");
+
+  const userId = req.user?._id;
+  if (!userId) {
+    logger.warn("Logout failed: No user found in request");
+    throw new apiError(401, "Unauthorized: No user found in request");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    {
+      $unset: { refreshToken: "" },
+    },
+    { new: true }
+  );
+
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+  });
+
+  logger.info("User logged out successfully", {
+    userId,
+    username: user?.username,
+  });
+
+  return res
+    .status(200)
+    .json(new APIResponse(200, {}, "User logged out successfully."));
+});
+
+/**
+ * @desc Get user by ID (includes profile)
+ * @route GET /api/user/:id
+ */
+const getUserById = asyncHandler(async (req, res) => {
+  logger.info("Get user by ID request", { userId: req.params.id });
+
+  const userId = req.params.id;
+  if (!userId) {
+    logger.warn("Get user failed: Missing userId param");
+    throw new apiError(400, "userId is required");
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    logger.warn("User not found", { userId });
+    throw new apiError(404, "User not found");
+  }
+
+  const profile = await UserProfile.findOne({ user: user._id });
+  if (!profile) {
+    logger.warn("User profile not found", { userId });
+    throw new apiError(404, "User profile not found");
+  }
+
+  logger.info("User data fetched successfully", {
+    userId: user._id,
+    username: user.username,
+  });
+
+  return res.status(200).json(
+    new APIResponse(
+      200,
+      { user: { user, profile } },
+      "User data fetched successfully"
+    )
+  );
+});
+
+export { registerUser, loginUser, logOutUser, getUserById };

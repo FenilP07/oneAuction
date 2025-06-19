@@ -32,6 +32,14 @@ const userSchema = new Schema(
       default: "active",
     },
     lastLogin: { type: Date, default: Date.now },
+    passwordResetToken: {
+      type: String,
+      default: null,
+    },
+    passwordResetExpires: {
+      type: Date,
+      default: null,
+    },
     refreshToken: { type: String, default: null },
   },
   {
