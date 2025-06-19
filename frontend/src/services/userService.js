@@ -1,117 +1,101 @@
 // src/services/userService.js
-// import axios from "axios";
-
-/**
- * Registers a new user with the backend.
- * @param {Object} formData - User registration data.
- * @returns {Promise<Object>} - The response data from the server.
- */
-// export const registerUser = async (formData) => {
-//   const response = await axios.post(
-//     "http://localhost:3000/user/register",
-//     formData,
-//     {
-//       headers: {
-//         "Content-Type": "application/json",
-//       },
-//       withCredentials: true,
-//     }
-//   );
-
-//   return response.data;
-// };
-
-
-// export const loginUser = async (formData) => {
-//   const response = await fetch('http://localhost:3000/api/user/login', {
-//     method: 'POST',
-//     headers: {
-//       'Content-Type': 'application/json',
-//     },
-//     body: JSON.stringify(formData),
-//   });
-
-//   if (!response.ok) {
-//     throw new Error('Login failed');
-//   }
-
-//   return response.json();
-// };
-
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:3000/api/user";
+const CLIENT_API = import.meta.env.CLIENT_API || "http://localhost:3000/api";
 
-const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+const apiClient = axios.create({
+  baseURL: CLIENT_API,
   withCredentials: true,
 });
 
 /**
+ * Sets the Authorization header for subsequent requests.
+ * @param {string} token - The access token (or null to clear).
+ */
+export const setAuthToken = (token) => {
+  if (token) {
+    apiClient.defaults.headers.Authorization = `Bearer ${token}`;
+    console.log("Access token set in headers:", token);
+  } else {
+    delete apiClient.defaults.headers.Authorization;
+    console.log("Access token removed from headers");
+  }
+};
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    const isAuthError =
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes("/user/login") &&
+      !originalRequest.url.includes("/user/register");
+
+    if (isAuthError) {
+      originalRequest._retry = true;
+      console.warn("401 detected. Trying to refresh token...");
+
+      try {
+        const refreshResponse = await axios.post(
+          `${CLIENT_API}/user/refresh-token`,
+          {},
+          {
+            withCredentials: true,
+          }
+        );
+        const newAccessToken = refreshResponse.data.accessToken;
+        console.log("Token refreshed:", newAccessToken);
+
+        localStorage.setItem("accessToken", newAccessToken);
+        setAuthToken(newAccessToken);
+
+        originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`;
+        console.log("Retrying original request...");
+
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        console.error("Refresh token failed:", refreshError);
+        localStorage.removeItem("accessToken");
+        setAuthToken(null);
+        throw refreshError;
+      }
+    }
+
+    console.error("API error:", error);
+    return Promise.reject(error);
+  }
+);
+
+/**
  * Registers a new user with the backend.
- * @param {Object} formData - User registration data (firstName, lastName, email, username, password, confirmPassword).
- * @returns {Promise<Object>} - The response data from the server.
  */
 export const registerUser = async (formData) => {
   try {
-    const response = await axiosInstance.post("/register", formData);
+    console.log("Registering user:", formData);
+    const response = await apiClient.post("/user/register", formData);
     return response.data;
   } catch (error) {
-    throw new Error(
-      error.response?.data?.message || "Registration failed. Please try again."
-    );
+    const message = error.response?.data?.message || "Registration failed";
+    console.error("Registration error:", message);
+    throw new Error(message);
   }
 };
 
 /**
- * Logs in a user and returns access and refresh tokens.
- * @param {Object} formData - User login data (identifier, password).
- * @returns {Promise<Object>} - The response data from the server.
+ * Logs in a user with the backend.
  */
 export const loginUser = async (formData) => {
   try {
-    const response = await axiosInstance.post("/login", formData);
+    console.log("Logging in user:", formData);
+    const response = await apiClient.post("/user/login", formData);
+    console.log("Login successful:", response.data);
     return response.data;
   } catch (error) {
-    throw new Error(
-      error.response?.data?.message || "Login failed. Please try again."
-    );
-  }
-};
-
-/**
- * Requests a password reset link for a user.
- * @param {Object} formData - User data (identifier).
- * @returns {Promise<Object>} - The response data from the server.
- */
-export const requestPasswordReset = async (formData) => {
-  try {
-    const response = await axiosInstance.post("/forgot-password", formData);
-    return response.data;
-  } catch (error) {
-    throw new Error(
+    const message =
       error.response?.data?.message ||
-        "Failed to send reset email. Please try again."
-    );
-  }
-};
-
-/**
- * Resets a user's password using a token.
- * @param {Object} formData - User data (password, confirmPassword, token).
- * @returns {Promise<Object>} - The response data from the server.
- */
-export const resetPassword = async (formData) => {
-  try {
-    const response = await axiosInstance.post("/reset-password", formData);
-    return response.data;
-  } catch (error) {
-    throw new Error(
-      error.response?.data?.message ||
-        "Failed to reset password. Please try again."
-    );
+      "Login failed. Please check your credentials.";
+    console.error("Login error:", message);
+    throw new Error(message);
   }
 };
