@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import FormInput from '../../components/FormInput.jsx';
 import Button from '../../components/Button.jsx';
-import Spinner from '../../components/Spinner.jsx'; // ✅ Import spinner
+import Spinner from '../../components/Spinner.jsx';
 import validateForm from '../../utils/validateForm.js';
 import { registerUser } from '../../services/userService.js';
 import '../Register/register.css';
@@ -16,11 +16,10 @@ const RegistrationForm = () => {
     password: '',
     confirmPassword: '',
   });
-
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     document.title = 'OneAuction - Register';
@@ -29,33 +28,58 @@ const RegistrationForm = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: '' });
+    setMessage(''); 
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage('');
+    setErrors({});
 
     const validationErrors = validateForm(formData);
-    setErrors(validationErrors);
-
-    if (Object.keys(validationErrors).length === 0) {
-      try {
-        const response = await registerUser(formData);
-        setMessage(
-          <div className="text-success text-center mb-3">
-            {response.message || 'Registration successful! Redirecting to login...'}
-          </div>
-        );
-        navigate("/login")
-        // setTimeout(() => navigate('/login'), 2000);
-      } catch (error) {
-        const msg = error.response?.data?.message || 'Registration failed. Please try again.';
-        setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
-      }
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setIsLoading(false);
+      return;
     }
 
-    setIsLoading(false);
+    try {
+      const response = await registerUser(formData);
+      setMessage(
+        <div className="alert alert-success text-center mb-3">
+          {response.message || 'Registration successful! Redirecting to login...'}
+        </div>
+      );
+      navigate('/login');
+    } catch (error) {
+      const backendMessage = error.message;
+      console.error('Registration error:', backendMessage);
+
+      // Map specific backend errors to form fields
+      let newErrors = {};
+      if (backendMessage.includes('Email or username already in use')) {
+        newErrors.email = 'Email or username already in use';
+        newErrors.username = 'Email or username already in use';
+      } else if (backendMessage.includes('Passwords do not match')) {
+        newErrors.password = 'Passwords do not match';
+        newErrors.confirmPassword = 'Passwords do not match';
+      } else if (backendMessage.includes('Password must contain')) {
+        newErrors.password = backendMessage;
+        newErrors.confirmPassword = backendMessage;
+      } else if (backendMessage.includes('All required fields')) {
+        newErrors.firstName = !formData.firstName ? 'First Name is required' : '';
+        newErrors.lastName = !formData.lastName ? 'Last Name is required' : '';
+        newErrors.email = !formData.email ? 'Email is required' : '';
+        newErrors.password = !formData.password ? 'Password is required' : '';
+        newErrors.confirmPassword = !formData.confirmPassword ? 'Confirm Password is required' : '';
+      } else {
+        setMessage(<div className="alert alert-danger text-center mb-3">{backendMessage}</div>);
+      }
+
+      setErrors(newErrors);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -66,6 +90,8 @@ const RegistrationForm = () => {
         </section>
 
         <div className="form-wrapper">
+          {message && <div className="mb-3">{message}</div>}
+
           <div className="row-name">
             <FormInput
               label="First Name*"
@@ -120,8 +146,6 @@ const RegistrationForm = () => {
             onChange={handleChange}
             error={errors.confirmPassword}
           />
-
-          {message}
 
           <div className="register-actions d-flex flex-column justify-content-between align-items-center">
             <Button

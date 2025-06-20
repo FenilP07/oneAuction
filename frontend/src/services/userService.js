@@ -29,7 +29,8 @@ apiClient.interceptors.response.use(
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url.includes("/user/login") &&
-      !originalRequest.url.includes("/user/register");
+      !originalRequest.url.includes("/user/register") &&
+      !originalRequest.url.includes("/user/logout");
 
     if (isAuthError) {
       originalRequest._retry = true;
@@ -91,9 +92,7 @@ export const loginUser = async (formData) => {
     console.log("Login successful:", response.data);
     return response.data;
   } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      "Login failed. Please check your credentials.";
+    const message = error.response?.data?.message || "Login failed. Please check your credentials.";
     console.error("Login error:", message);
     throw new Error(message);
   }
@@ -105,13 +104,14 @@ export const loginUser = async (formData) => {
 export const requestPasswordReset = async (formData) => {
   try {
     console.log("Requesting password reset for:", formData);
-    const response = await apiClient.post("/user/request-password-reset", formData);
+    const response = await apiClient.post(
+      "/user/request-password-reset",
+      formData
+    );
     console.log("Password reset request successful:", response.data);
     return response.data;
   } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      "Failed to send reset email. Please try again.";
+    const message = error.response?.data?.message || "Failed to send reset email. Please try again.";
     console.error("Password reset request error:", message);
     throw new Error(message);
   }
@@ -127,10 +127,31 @@ export const resetPassword = async (formData) => {
     console.log("Password reset successful:", response.data);
     return response.data;
   } catch (error) {
-    const message =
-      error.response?.data?.message ||
-      "Failed to reset password. Please try again.";
+    const message = error.response?.data?.message || "Failed to reset password. Please try again.";
     console.error("Password reset error:", message);
+    throw new Error(message);
+  }
+};
+
+/**
+ * Logs out the current user.
+ */
+export const logoutUser = async () => {
+  try {
+    console.log("Logging out user...");
+    const response = await apiClient.post("/user/logout");
+    console.log("Logout successful:", response.data);
+
+    localStorage.removeItem("accessToken");
+    setAuthToken(null);
+
+    return response.data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Logout failed. Please try again.";
+    console.error("Logout error:", message);
+
+    localStorage.removeItem("accessToken");
+    setAuthToken(null);
     throw new Error(message);
   }
 };
