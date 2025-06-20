@@ -47,7 +47,8 @@ const RegistrationForm = () => {
             {response.message || 'Registration successful! Redirecting to login...'}
           </div>
         );
-        setTimeout(() => navigate('/login'), 2000);
+        navigate("/login")
+        // setTimeout(() => navigate('/login'), 2000);
       } catch (error) {
         const msg = error.response?.data?.message || 'Registration failed. Please try again.';
         setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
