@@ -2,24 +2,25 @@ import { Router } from "express";
 import {
   registerUser,
   loginUser,
-  logOutUser,
+  logoutUser,
   getUserById,
   requestPasswordReset,
   resetPassword,
 } from "../controllers/user.controllers.js";
 import { refreshAccessTokenMiddleware } from "../middlewares/refreshToken.middlewares.js";
-import { isLoggedIn } from "../middlewares/isLoggedIn.js"; 
+import { authenticatedMiddleware } from "../middlewares/auth.middlewares.js";
+
 
 const router = Router();
 
 //  Unprotected routes
 router.post("/register", registerUser);
 router.post("/login", loginUser);
-router.get("/:id", getUserById);
+router.get("/:id",authenticatedMiddleware, getUserById);
 
 
 // Protected routes
-router.post("/logout", isLoggedIn, logOutUser);
+router.post("/logout", authenticatedMiddleware, logoutUser);
 
 
 //protected routes

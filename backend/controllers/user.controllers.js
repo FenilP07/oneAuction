@@ -7,6 +7,8 @@ import { generateRandomUsername } from "../utils/randomUsername.js";
 import logger from "../utils/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
+import RevokedToken from "../models/revokedTokens.models.js";
+import jwt from "jsonwebtoken";
 
 /**
  * @desc Registers a new user with profile creation
@@ -173,38 +175,47 @@ const loginUser = asyncHandler(async (req, res) => {
  * @desc Logs out a user by clearing the refresh token cookie
  * @route POST /api/user/logout
  */
-const logOutUser = asyncHandler(async (req, res) => {
-  logger.info("Logout request received");
-
+const logoutUser = asyncHandler(async (req, res) => {
   const userId = req.user?._id;
-  if (!userId) {
-    logger.warn("Logout failed: No user found in request");
-    throw new apiError(401, "Unauthorized: No user found in request");
+  const accessToken = req.headers.authorization?.split(" ")[1];
+
+  if (!userId || !accessToken) {
+    throw new apiError(401, "Unauthorized: No user found or no token provided");
   }
 
+  
+  const decoded = jwt.decode(accessToken);
+  const expiryDate = new Date(decoded.exp * 1000);
+
+  await RevokedToken.create({
+    token: accessToken,
+    expiresAt: expiryDate,
+  });
+
+  // Remove refresh token from user DB
   const user = await User.findByIdAndUpdate(
     userId,
-    {
-      $unset: { refreshToken: "" },
-    },
-    { new: true }
+    { $unset: { refreshToken: "" } },
+    { new: false }
   );
 
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+
+  // Clear refresh token cookie
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
-  });
-
-  logger.info("User logged out successfully", {
-    userId,
-    username: user?.username,
+    path: "/",
   });
 
   return res
     .status(200)
-    .json(new APIResponse(200, {}, "User logged out successfully."));
+    .json(new APIResponse(200, {}, "User logged out successfully"));
 });
+
 
 /**
  * @desc Get user by ID (includes profile)
@@ -344,7 +355,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 export {
   registerUser,
   loginUser,
-  logOutUser,
+  logoutUser,
   getUserById,
   requestPasswordReset,
   resetPassword,
