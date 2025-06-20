@@ -52,9 +52,9 @@ const validateForm = (formData) => {
     errors.lastName = 'Last Name is required';
   }
 
-  if ('username' in formData && !formData.username.trim()) {
-    errors.username = 'Username is required';
-  }
+  // if ('username' in formData && !formData.username.trim()) {
+  //   errors.username = 'Username is required';
+  // }
 
   return errors;
 };

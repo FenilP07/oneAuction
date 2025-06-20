@@ -176,23 +176,39 @@ const loginUser = asyncHandler(async (req, res) => {
  * @route POST /api/user/logout
  */
 const logoutUser = asyncHandler(async (req, res) => {
+  logger.info("Logout request received", {
+    userId: req.user?._id,
+    headers: req.headers.authorization ? "Authorization header present" : "No Authorization header",
+  });
+
   const userId = req.user?._id;
   const accessToken = req.headers.authorization?.split(" ")[1];
 
   if (!userId || !accessToken) {
+    logger.warn("Logout failed: Missing userId or accessToken", {
+      userId: req.user?._id || "undefined",
+      accessToken: accessToken || "undefined",
+    });
     throw new apiError(401, "Unauthorized: No user found or no token provided");
   }
 
-  
+  logger.debug("Decoding access token", { accessToken });
   const decoded = jwt.decode(accessToken);
+  if (!decoded) {
+    logger.warn("Logout failed: Invalid token format", { accessToken });
+    throw new apiError(401, "Invalid token format");
+  }
   const expiryDate = new Date(decoded.exp * 1000);
+  logger.debug("Token decoded", { userId: decoded.sub, expiryDate });
 
-  await RevokedToken.create({
+  logger.debug("Creating RevokedToken entry", { token: accessToken });
+  const revokedToken = await RevokedToken.create({
     token: accessToken,
     expiresAt: expiryDate,
   });
+  logger.info("Access token revoked", { revokedTokenId: revokedToken._id, token: accessToken });
 
-  // Remove refresh token from user DB
+  logger.debug("Removing refresh token from user", { userId });
   const user = await User.findByIdAndUpdate(
     userId,
     { $unset: { refreshToken: "" } },
@@ -200,22 +216,26 @@ const logoutUser = asyncHandler(async (req, res) => {
   );
 
   if (!user) {
+    logger.warn("Logout failed: User not found", { userId });
     throw new apiError(404, "User not found");
   }
+  logger.info("Refresh token removed from user", { userId, username: user.username });
 
-  // Clear refresh token cookie
+  logger.debug("Clearing refreshToken cookie");
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
     path: "/",
   });
+  logger.info("Refresh token cookie cleared");
+
+  logger.info("User logged out successfully", { userId, username: user.username });
 
   return res
     .status(200)
     .json(new APIResponse(200, {}, "User logged out successfully"));
 });
-
 
 /**
  * @desc Get user by ID (includes profile)
