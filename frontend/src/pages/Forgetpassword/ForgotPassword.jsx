@@ -2,15 +2,17 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import FormInput from "../../components/FormInput.jsx";
 import Button from "../../components/Button.jsx";
+import Spinner from "../../components/Spinner.jsx";
 import validateForm from "../../utils/validateForm.js";
 import { requestPasswordReset } from "../../services/userService.js";
 
 const ForgotPassword = () => {
     const [formData, setFormData] = useState({
-        identifier: "",
+        email: "",
     });
     const [errors, setErrors] = useState({});
     const [message, setMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         document.title = "OneAuction - Forgot Password";
@@ -26,6 +28,7 @@ const ForgotPassword = () => {
         setErrors(validationErrors);
 
         if (Object.keys(validationErrors).length === 0) {
+            setIsLoading(true);
             try {
                 const data = await requestPasswordReset(formData);
                 setMessage(
@@ -33,11 +36,13 @@ const ForgotPassword = () => {
                         {data?.message || "Password reset email sent! Check your inbox."}
                     </div>
                 );
-                setFormData({ identifier: "" }); // Clear form
+                setFormData({ email: "" }); // Clear form
             } catch (error) {
                 const msg =
                     error.message || "Failed to send reset email. Please try again.";
                 setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
+            }finally {
+                setIsLoading(false);
             }
         } else {
             setMessage("");
@@ -58,12 +63,12 @@ const ForgotPassword = () => {
 
                     <FormInput
                         label="Email Address*"
-                        id="identifier"
-                        name="identifier"
+                        id="email"
+                        name="email"
                         type="email"
-                        value={formData.identifier}
+                        value={formData.email}
                         onChange={handleChange}
-                        error={errors.identifier}
+                        error={errors.email}
                     />
 
                     {message}
@@ -73,7 +78,14 @@ const ForgotPassword = () => {
                             type="submit"
                             className="btn btn-info btn-register d-flex align-items-center"
                         >
-                            Send Reset Link
+                           <>
+                                Send Reset Link
+                                {isLoading && (
+                                    <span className="ms-2">
+                                        <Spinner />
+                                    </span>
+                                )}
+                            </>
                         </Button>
                     </div>
 

@@ -105,7 +105,7 @@ export const loginUser = async (formData) => {
 export const requestPasswordReset = async (formData) => {
   try {
     console.log("Requesting password reset for:", formData);
-    const response = await apiClient.post("/user/forgot-password", formData);
+    const response = await apiClient.post("/user/request-password-reset", formData);
     console.log("Password reset request successful:", response.data);
     return response.data;
   } catch (error) {

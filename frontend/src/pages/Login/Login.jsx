@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import FormInput from "../../components/FormInput.jsx";
 import Button from "../../components/Button.jsx";
-import Spinner from "../../components/Spinner.jsx"; // Make sure this path is correct
+import Spinner from "../../components/Spinner.jsx"; 
 import validateForm from "../../utils/validateForm.js";
 import { loginUser, setAuthToken } from "../../services/userService.js";
 import "../Login/login.css";

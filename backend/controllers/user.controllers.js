@@ -8,7 +8,6 @@ import logger from "../utils/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
 
-
 /**
  * @desc Registers a new user with profile creation
  * @route POST /api/user/register
@@ -237,13 +236,15 @@ const getUserById = asyncHandler(async (req, res) => {
     username: user.username,
   });
 
-  return res.status(200).json(
-    new APIResponse(
-      200,
-      { user: { user, profile } },
-      "User data fetched successfully"
-    )
-  );
+  return res
+    .status(200)
+    .json(
+      new APIResponse(
+        200,
+        { user: { user, profile } },
+        "User data fetched successfully"
+      )
+    );
 });
 
 /**
@@ -262,7 +263,7 @@ const requestPasswordReset = asyncHandler(async (req, res) => {
     throw new apiError(404, "No account registered with this email.");
   }
 
-  const resetToken = generateAccessToken(user._id, user.role); 
+  const resetToken = generateAccessToken(user._id, user.role);
   const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
 
   // Store token & expiry in DB
@@ -280,9 +281,11 @@ const requestPasswordReset = asyncHandler(async (req, res) => {
 
   logger.info("Password reset email sent", { userId: user._id, email });
 
-  return res.status(200).json(
-    new APIResponse(200, null, "Password reset email sent successfully.")
-  );
+  return res
+    .status(200)
+    .json(
+      new APIResponse(200, null, "Password reset email sent successfully.")
+    );
 });
 
 /**
@@ -318,6 +321,13 @@ const resetPassword = asyncHandler(async (req, res) => {
     );
   }
 
+  if (await user.comparePassword(newPassword)) {
+    throw new apiError(
+      400,
+      "New password cannot be the same as the current password."
+    );
+  }
+
   // Update password
   user.password = newPassword;
   user.passwordResetToken = null;
@@ -326,10 +336,16 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   logger.info("Password reset successful", { userId: user._id });
 
-  return res.status(200).json(
-    new APIResponse(200, null, "Password has been reset successfully.")
-  );
+  return res
+    .status(200)
+    .json(new APIResponse(200, null, "Password has been reset successfully."));
 });
 
-
-export { registerUser, loginUser, logOutUser, getUserById, requestPasswordReset, resetPassword};
+export {
+  registerUser,
+  loginUser,
+  logOutUser,
+  getUserById,
+  requestPasswordReset,
+  resetPassword,
+};

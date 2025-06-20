@@ -8,6 +8,8 @@ frontend/node_modules/
 .env.development
 .env.test
 .env.production
+backend/.env
+frontend/.env
 
 # Build outputs
 backend/build/
