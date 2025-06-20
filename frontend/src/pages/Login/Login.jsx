@@ -51,8 +51,8 @@ const Login = () => {
             {response.message || "Login successful! Redirecting ..."}
           </div>
         );
-
-        setTimeout(() => navigate("/dashboard"), 2000);
+        navigate("/dashboard")
+        // setTimeout(() => navigate("/dashboard"), 2000);
       } catch (error) {
         console.error("Login error:", error);
         const msg =

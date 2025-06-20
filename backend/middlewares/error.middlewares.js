@@ -5,12 +5,14 @@ import logger from "../utils/logger.js";
 const errorHandler = (err, req, res, next) => {
   let error = err;
 
+  // Log the raw error
   logger.error({
-    message: error.message,
-    stack: error.stack,
-    statusCode: error.statusCode,
+    message: err.message,
+    stack: err.stack,
+    statusCode: err.statusCode,
   });
 
+  // Handle Mongoose-specific errors
   if (err instanceof mongoose.Error.ValidationError) {
     error = new apiError(400, "Validation failed", err.errors);
   } else if (err instanceof mongoose.Error.CastError) {
@@ -18,18 +20,18 @@ const errorHandler = (err, req, res, next) => {
   } else if (err.code === 11000) {
     error = new apiError(409, "Duplicate key error");
   } else if (!(error instanceof apiError)) {
-    const statusCode = error.statusCode || 500;
-    const message = error.message || "Something went wrong";
+    // Catch-all for unknown errors
+    const statusCode = err.statusCode || 500;
+    const message = err.message || "Internal server error";
     error = new apiError(statusCode, message, [], err.stack);
   }
 
+  // Build response payload
   const response = {
+    success: false,
     statusCode: error.statusCode,
-    message:
-      process.env.NODE_ENV === "production"
-        ? "Something went wrong"
-        : error.message,
-    ...(process.env.NODE_ENV === "development" ? { stack: error.stack } : {}),
+    message: error.message, // Always show meaningful message
+    ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
   };
 
   return res.status(error.statusCode).json(response);

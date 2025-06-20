@@ -1,6 +1,6 @@
 import React from 'react'
 
-import './spinner.css'
+import '../style/spinner.css'
 
 const Spinner = () => {
   return <span className="spinner"> </span>
