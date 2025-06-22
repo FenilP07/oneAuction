@@ -18,13 +18,8 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/:id",authenticatedMiddleware, getUserById);
 
-
 // Protected routes
 router.post("/logout", authenticatedMiddleware, logoutUser);
-
-
-//protected routes
-
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 
