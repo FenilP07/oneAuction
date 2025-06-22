@@ -1,0 +1,30 @@
+.user-page{
+  width: 70vw;
+    padding: 1rem;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.664) 2.12%, rgba(255, 254, 254, 0) 98.19%);
+    box-shadow: 15px 15px 40px -10px #afacac;
+    backdrop-filter: blur(10px);
+    border-radius: 4px;
+    height: 40vw;
+    margin: 2rem auto;
+}
+.user-content{
+    margin: 2rem auto;
+    display: grid;
+    justify-content: center;
+}
+
+.circular--landscape
+ { display: inline-block;
+     position: relative;
+      width: 220px; 
+      height: 220px; 
+      overflow: hidden; 
+      border-radius: 50%; 
+    }
+
+ .circular--landscape img
+  { 
+    width: auto; height: 100%; margin-left: -50px; 
+}
+

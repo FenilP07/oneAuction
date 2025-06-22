@@ -134,3 +134,32 @@ export const resetPassword = async (formData) => {
     throw new Error(message);
   }
 };
+
+/**
+ * Fetches user data by ID.
+ * @param {string} userId - The ID of the user to fetch.
+ */
+export const getUserById = async (userId) => {
+  try {
+    console.log("Fetching user with ID:", userId);
+    const response = await apiClient.get(`/user/${userId}`);
+    console.log("User data fetched:", response.data);
+    return response.data;
+  } catch (error) {
+    const message = error.response?.data?.message || "Failed to fetch user data";
+    console.error("Get user error:", message);
+    throw new Error(message);
+  }
+};
+export const getCurrentUser = async () => {
+  try {
+    console.log('Fetching current user');
+    const response = await apiClient.get('/user/me');
+    console.log('Current user data fetched:', response.data);
+    return response.data;
+  } catch (error) {
+    const message = error.response?.data?.message || 'Failed to fetch user data';
+    console.error('Get current user error:', message);
+    throw new Error(message);
+  }
+};
