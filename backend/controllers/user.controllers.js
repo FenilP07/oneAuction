@@ -7,6 +7,8 @@ import { generateRandomUsername } from "../utils/randomUsername.js";
 import logger from "../utils/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
+import RevokedToken from "../models/revokedTokens.models.js";
+import jwt from "jsonwebtoken";
 
 /**
  * @desc Registers a new user with profile creation
@@ -173,37 +175,66 @@ const loginUser = asyncHandler(async (req, res) => {
  * @desc Logs out a user by clearing the refresh token cookie
  * @route POST /api/user/logout
  */
-const logOutUser = asyncHandler(async (req, res) => {
-  logger.info("Logout request received");
+const logoutUser = asyncHandler(async (req, res) => {
+  logger.info("Logout request received", {
+    userId: req.user?._id,
+    headers: req.headers.authorization ? "Authorization header present" : "No Authorization header",
+  });
 
   const userId = req.user?._id;
-  if (!userId) {
-    logger.warn("Logout failed: No user found in request");
-    throw new apiError(401, "Unauthorized: No user found in request");
+  const accessToken = req.headers.authorization?.split(" ")[1];
+
+  if (!userId || !accessToken) {
+    logger.warn("Logout failed: Missing userId or accessToken", {
+      userId: req.user?._id || "undefined",
+      accessToken: accessToken || "undefined",
+    });
+    throw new apiError(401, "Unauthorized: No user found or no token provided");
   }
 
+  logger.debug("Decoding access token", { accessToken });
+  const decoded = jwt.decode(accessToken);
+  if (!decoded) {
+    logger.warn("Logout failed: Invalid token format", { accessToken });
+    throw new apiError(401, "Invalid token format");
+  }
+  const expiryDate = new Date(decoded.exp * 1000);
+  logger.debug("Token decoded", { userId: decoded.sub, expiryDate });
+
+  logger.debug("Creating RevokedToken entry", { token: accessToken });
+  const revokedToken = await RevokedToken.create({
+    token: accessToken,
+    expiresAt: expiryDate,
+  });
+  logger.info("Access token revoked", { revokedTokenId: revokedToken._id, token: accessToken });
+
+  logger.debug("Removing refresh token from user", { userId });
   const user = await User.findByIdAndUpdate(
     userId,
-    {
-      $unset: { refreshToken: "" },
-    },
-    { new: true }
+    { $unset: { refreshToken: "" } },
+    { new: false }
   );
 
+  if (!user) {
+    logger.warn("Logout failed: User not found", { userId });
+    throw new apiError(404, "User not found");
+  }
+  logger.info("Refresh token removed from user", { userId, username: user.username });
+
+  logger.debug("Clearing refreshToken cookie");
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "Strict",
+    path: "/",
   });
+  logger.info("Refresh token cookie cleared");
 
-  logger.info("User logged out successfully", {
-    userId,
-    username: user?.username,
-  });
+  logger.info("User logged out successfully", { userId, username: user.username });
 
   return res
     .status(200)
-    .json(new APIResponse(200, {}, "User logged out successfully."));
+    .json(new APIResponse(200, {}, "User logged out successfully"));
 });
 
 /**
@@ -344,7 +375,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 export {
   registerUser,
   loginUser,
-  logOutUser,
+  logoutUser,
   getUserById,
   requestPasswordReset,
   resetPassword,

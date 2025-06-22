@@ -5,7 +5,10 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { errorHandler } from "./middlewares/error.middlewares.js";
 import userRoutes from "./routes/user.routes.js";
+import categoryRoutes from "./routes/category.routes.js";
 import dotenv from "dotenv";
+
+
 const app = express();
 
 app.use(
@@ -39,6 +42,7 @@ app.use(
 );
 
 app.use("/api/user/", userRoutes);
+app.use("/api/category/", categoryRoutes);
 
 app.use(errorHandler);
 export { app };

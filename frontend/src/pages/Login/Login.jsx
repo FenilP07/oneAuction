@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import FormInput from "../../components/FormInput.jsx";
 import Button from "../../components/Button.jsx";
-import Spinner from "../../components/Spinner.jsx"; 
+import Spinner from "../../components/Spinner.jsx";
 import validateForm from "../../utils/validateForm.js";
 import { loginUser, setAuthToken } from "../../services/userService.js";
 import "../Login/login.css";
@@ -12,11 +12,10 @@ const Login = () => {
     identifier: "",
     password: "",
   });
-
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     document.title = "OneAuction - Login";
@@ -25,44 +24,58 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
+    setMessage(''); // Clear message on input change
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage("");
+    setMessage('');
+    setErrors({});
+
     const validationErrors = validateForm(formData);
-    setErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setIsLoading(false);
+      return;
+    }
 
-    if (Object.keys(validationErrors).length === 0) {
-      try {
-        const response = await loginUser(formData);
-        const accessToken = response.data.user.accessToken;
+    try {
+      const response = await loginUser(formData);
+      const accessToken = response.data.user.accessToken;
 
-        if (!accessToken) {
-          throw new Error("Access token not found in response");
-        }
-
-        setAuthToken(accessToken);
-        localStorage.setItem("accessToken", accessToken);
-
-        setMessage(
-          <div className="text-success text-center mb-3">
-            {response.message || "Login successful! Redirecting ..."}
-          </div>
-        );
-        navigate("/dashboard")
-        // setTimeout(() => navigate("/dashboard"), 2000);
-      } catch (error) {
-        console.error("Login error:", error);
-        const msg =
-          error.response?.data?.message ||
-          error.message ||
-          "Login failed. Please try again.";
-        setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
-        setIsLoading(false);
+      if (!accessToken) {
+        throw new Error("Access token not found in response");
       }
-    } else {
+
+      setAuthToken(accessToken);
+      localStorage.setItem("accessToken", accessToken);
+
+      setMessage(
+        <div className="alert alert-success text-center mb-3">
+          {response.message || "Login successful! Redirecting ..."}
+        </div>
+      );
+      navigate("/dashboard");
+    } catch (error) {
+      const backendMessage = error.message;
+      console.error("Login error:", backendMessage);
+
+      // Map specific backend errors to form fields
+      let newErrors = {};
+      if (backendMessage.includes('Invalid email/username or password')) {
+        newErrors.identifier = 'Invalid email/username or password';
+        newErrors.password = 'Invalid email/username or password';
+      } else if (backendMessage.includes('Identifier and password are required')) {
+        newErrors.identifier = !formData.identifier ? 'Email or Username is required' : '';
+        newErrors.password = !formData.password ? 'Password is required' : '';
+      } else if (backendMessage.includes('Account is not active')) {
+        newErrors.identifier = 'Account is not active';
+      } else {
+        setMessage(<div className="alert alert-danger text-center mb-3">{backendMessage}</div>);
+      }
+
+      setErrors(newErrors);
       setIsLoading(false);
     }
   };
@@ -75,6 +88,8 @@ const Login = () => {
         </section>
 
         <div className="form-wrapper">
+          {message && <div className="mb-3">{message}</div>}
+
           <FormInput
             label="Email or Username*"
             id="identifier"
@@ -93,8 +108,6 @@ const Login = () => {
             onChange={handleChange}
             error={errors.password}
           />
-
-          {message}
 
           <div className="login-actions d-flex flex-column justify-content-between align-items-center">
             <Button

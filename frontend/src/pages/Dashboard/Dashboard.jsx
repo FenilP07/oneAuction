@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import Button from "../../components/Button.jsx";
 import Navbar from "../../components/Navbar.jsx";
 import "../Login/login.css"; // Assuming same styling as Login.jsx
-import { getUserById } from '../../services/userService';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -32,9 +31,15 @@ console.log("User ID from localStorage:", userId);
 
 
 
-  const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error.message);
+
+      navigate("/login");
+    }
   };
 
  return (
