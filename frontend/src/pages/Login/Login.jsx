@@ -50,6 +50,7 @@ const Login = () => {
 
       setAuthToken(accessToken);
       localStorage.setItem("accessToken", accessToken);
+      localStorage.setItem("userId", response.data.user._id);     // ✅ correct
 
       setMessage(
         <div className="alert alert-success text-center mb-3">

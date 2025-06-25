@@ -9,14 +9,13 @@ const User = () => {
   useEffect(() => {
     if (!userId) return;
     getUserById(userId)
-      .then((res) => {
-        console.log("Fetched user object:", res);
-        setUserData(res.data.user); // structure: { user: {...}, profile: {...} }
+      .then((user) => {
+        console.log("Fetched user object:", user);
+        setUserData(user); // user contains { user: {...}, profile: {...} }
       })
       .catch((err) => console.error("Error fetching user:", err));
   }, [userId]);
 
-  
   if (!userData || !userData.user || !userData.profile) {
     return <p>Loading...</p>;
   }
@@ -27,7 +26,7 @@ const User = () => {
         <div className='user-content'>
           <div className="circular--landscape">
             <img
-              src={userData.profile.avatarUrl || "/images/profile.png"}
+              src={ "images/profile.png" ||userData.profile.avatarUrl }
               alt="Profile"
             />
           </div>
