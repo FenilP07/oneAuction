@@ -1,17 +1,28 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { logoutUser } from "../services/userService.js";
+import { logoutUser, getUserById } from "../services/userService";
+
 
 function Navbar() {
   const navigate = useNavigate();
+  const [user, setUser] = useState(null);
 
-  const user = {
-    username: "Good Job",
-    profilePhoto: "",
-  };
+  const userId = localStorage.getItem("userId");
+
+  useEffect(() => {
+    if (!userId) return;
+    getUserById(userId)
+      .then((res) => {
+        console.log("Navbar user fetched:", res);
+        setUser(res); // contains { user: {}, profile: {} }
+      })
+      .catch((err) => {
+        console.error("Failed to fetch user in navbar:", err);
+      });
+  }, [userId]);
 
   const handleLogout = async () => {
     try {
@@ -26,9 +37,9 @@ function Navbar() {
   return (
     <nav className="navbar navbar-expand-lg bg-body-tertiary">
       <div className="container-fluid">
-        <a className="navbar-brand" href="#">
+        <Link className="navbar-brand" to="/">
           OneAuction
-        </a>
+        </Link>
 
         <button
           className="navbar-toggler"
@@ -47,23 +58,25 @@ function Navbar() {
           id="navbarNav"
         >
           <ul className="navbar-nav">
-            
+            {!user && (
+              <>
                 <li className="nav-item">
                   <Link className="nav-link" to="/login">
                     Login
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/register">
-                    Signup
+                  <Link className="nav-link" to="/category">
+                    Category
                   </Link>
                 </li>
-              
-            
+               
+              </>
+            )}
           </ul>
 
           {/* Right side profile dropdown */}
-          {(
+          {user && (
             <ul className="navbar-nav">
               <li className="nav-item dropdown">
                 <a
@@ -74,9 +87,9 @@ function Navbar() {
                   data-bs-toggle="dropdown"
                   aria-expanded="false"
                 >
-                  {user.profilePhoto ? (
+                  {user.profile?.avatarUrl ? (
                     <img
-                      src={user.profilePhoto}
+                      src={user.profile.avatarUrl || "images/profile.png" }
                       alt="Profile"
                       className="rounded-circle me-2"
                       width="30"
@@ -88,7 +101,7 @@ function Navbar() {
                       style={{ fontSize: "1.5rem" }}
                     ></i>
                   )}
-                  {user.username}
+                  {user.profile?.firstName} {user.profile?.lastName}
                 </a>
                 <ul
                   className="dropdown-menu dropdown-menu-end"

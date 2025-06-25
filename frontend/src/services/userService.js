@@ -155,3 +155,18 @@ export const logoutUser = async () => {
     throw new Error(message);
   }
 };
+/**
+ * Fetches user data by user ID.
+ * @param {string} userId - The user ID.
+ */
+
+
+export const getUserById = async (userId) => {
+  try {
+    const response = await apiClient.get(`/user/${userId}`);
+    return response.data.data.user; // this is the actual user object, containing user and profile
+  } catch (error) {
+    const message = error.response?.data?.message || "Failed to fetch user data.";
+    throw new Error(message);
+  }
+};

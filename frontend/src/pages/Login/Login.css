@@ -43,7 +43,7 @@ label {
   padding: 0.5rem 2rem;
   border-radius: 18px;
   font-weight: 700;
-  background-color: #17a2b8;
+  background-color:#a85a32  ; /*#17a2b8*/
   color: white;
   transition: background-color 0.3s ease;
 }
