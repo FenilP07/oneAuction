@@ -1,0 +1,38 @@
+/* App.css */
+
+.bg-black {
+    background-color: #000000 !important;
+}
+
+.bg-gold {
+    background-color: #FFBF00 !important;
+}
+
+.btn-outline-gold {
+    color: #FFBF00;
+    border-color: #FFBF00;
+}
+
+.btn-outline-gold:hover {
+    background-color: #FFBF00;
+    color: #000;
+}
+
+.btn-burgundy {
+    background-color: #800020;
+}
+
+.text-gold {
+    color: #FFBF00 !important;
+}
+
+.text-burgundy {
+    background-color: #800020;
+}
+.text-cream {
+    color: #F5F5DC !important;
+}
+
+.custom-navbar {
+    background-color: #000000 !important;
+}

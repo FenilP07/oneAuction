@@ -10,8 +10,13 @@ import "./index.css";
 import RegistrationForm from "./pages/Register/RegistrationForm";
 import User from "./pages/User/user.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute .jsx";
-import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
+
+import AddCategory from "./pages/Categories/AddCategory.jsx";
+import Home from "./pages/Home/Home.jsx";
+import Demo from "./pages/DemoPages/HomeCheck.jsx";
+
 import AdminDashboard from "./pages/Admin/AdminDasboard.jsx";
+
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -24,6 +29,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="register" element={<RegistrationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/demo" element={<Demo />} />
          <Route path="/profile" element={<User />} />
          <Route path="/addcategory" element={<AddCategory />} />
           <Route path="/admin" element={<AdminDashboard />} />
