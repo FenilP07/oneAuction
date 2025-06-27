@@ -25,8 +25,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="register" element={<RegistrationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-        <Route path="/profile" element={<User />} />
-        <Route path="/category" element={<AddCategory />} />
+          <Route path="/profile" element={<User />} />
+          <Route path="/category" element={<AddCategory />} />
         <Route path="/home" element={<Home />} />
         <Route path="/demo" element={<Demo />} />
         <Route
