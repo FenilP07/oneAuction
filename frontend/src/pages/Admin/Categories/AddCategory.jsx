@@ -1,13 +1,14 @@
 import React, { useState } from "react";
-import FormInput from "../../components/FormInput";
+import FormInput from "../../../components/FormInput";
 import "./categories.css";
+import Layout from "../../../components/Layout";
 
 const AddCategory = () => {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    image: "",
-    is_active: true,
+    image: null, // for file upload
+    is_active: true, // always true, no checkbox needed
   });
 
   const [errors, setErrors] = useState({});
@@ -15,10 +16,10 @@ const AddCategory = () => {
   const [successMessage, setSuccessMessage] = useState("");
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: value,
     }));
   };
 
@@ -41,18 +42,23 @@ const AddCategory = () => {
     }
 
     try {
-      const response = await fetch("/api/categories", {
+      const data = new FormData();
+      data.append("name", formData.name);
+      data.append("description", formData.description);
+      data.append("is_active", formData.is_active);
+      if (formData.image) {
+        data.append("image", formData.image);
+      }
+
+      const response = await fetch("http://localhost:3000/api/category/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        body: data,
       });
 
-      const data = await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Something went wrong");
+        throw new Error(result.message || "Something went wrong");
       }
 
       setSuccessMessage("Category created successfully!");
@@ -60,7 +66,7 @@ const AddCategory = () => {
       setFormData({
         name: "",
         description: "",
-        image: "",
+        image: null,
         is_active: true,
       });
     } catch (error) {
@@ -70,7 +76,7 @@ const AddCategory = () => {
   };
 
   return (
- 
+    <Layout>
       <div className="parent">
         <div className="title">
           <p className="add-title">Add Category</p>
@@ -100,28 +106,22 @@ const AddCategory = () => {
                   error={errors.description}
                 />
 
-                <FormInput
-                  id="image"
-                  name="image"
-                  type="text"
-                  label="Image URL:"
-                  value={formData.image}
-                  onChange={handleChange}
-                  error={errors.image}
-                />
-
-                <div className="form-check my-2">
+                {/* File upload input */}
+                <div className="form-group my-2">
+                  <label htmlFor="image">Upload Image:</label>
                   <input
-                    type="checkbox"
-                    id="is_active"
-                    name="is_active"
-                    checked={formData.is_active}
-                    onChange={handleChange}
-                    className="form-check-input"
+                    type="file"
+                    id="image"
+                    name="image"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        image: e.target.files[0],
+                      }))
+                    }
+                    className="form-control"
                   />
-                  <label htmlFor="is_active" className="form-check-label">
-                    Active
-                  </label>
                 </div>
 
                 {successMessage && <div className="success">{successMessage}</div>}
@@ -135,7 +135,7 @@ const AddCategory = () => {
           </div>
         </div>
       </div>
-   
+    </Layout>
   );
 };
 
