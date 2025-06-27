@@ -1,6 +1,7 @@
 # Node.js dependencies in backend and frontend
 backend/node_modules/
 frontend/node_modules/
+backend/uploads
 
 # Other common ignores
 .env
