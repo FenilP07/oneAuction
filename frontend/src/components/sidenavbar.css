@@ -1,0 +1,162 @@
+/* Top Navigation */
+.top-nav {
+  width: 100%;
+  background-color: #a85a32;
+  height: 8vh;
+  display: flex;
+  flex-direction: row;
+  position: fixed;
+  box-shadow: 0 0px 15px #a85a32;
+  z-index: 10;
+  color: white;
+}
+
+.top-nav p {
+  padding-left: 21vw;
+  padding-top: 0.4rem;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.top-nav a {
+  text-decoration: none;
+  position: fixed;
+  right: 0;
+  float: right;
+  color: white;
+  margin-right: 1.2rem;
+  padding-top: 0.5rem;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Logo */
+ .sidenavbar .logo {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.sidenavbar .logo-company {
+  height: 124px;
+  width: 130px;
+  border-radius: 50%;
+  padding: 26px;
+}
+
+/* Sidebar */
+ .sidenavbar .side-menu {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 10px #d9d9d9;
+  transition: 0.5s;
+}
+
+.sidenavbar .nav-ul {
+  list-style: none;
+  padding: 0;
+}
+
+.sidenavbar .side-menu li {
+  padding: 15px;
+  margin-top: 0.4rem;
+  color: black;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sidenavbar .side-menu a {
+  text-decoration: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  margin-left: 2rem;
+}
+
+.sidenavbar .side-menu .icon {
+  padding-right: 18px;
+  font-size: 20px;
+}
+
+/* Hover Effect */
+.sidenavbar .side-menu li:hover {
+  background-color: #ECECEC;
+  color: black;
+}
+
+/* Sidebar Wrapper */
+.sidenavbar {
+  width: 20vw;
+  height: 100vh;
+  position: fixed;
+  background-color: #FFFFFF;
+  margin-top: -2.5rem;
+  transition: all 500ms;
+}
+
+.sidenavbar .nav-link{
+  margin-left: 2rem;
+  display: flex;
+
+}
+span.cate {
+    padding-top: 7px;
+}
+/* Main Page Content */
+.page-wrapper {
+  display: flex;
+  
+}
+
+main {
+  padding-left: 20vw;
+  width: 100%;
+  background-color: #F5F6FA;
+}
+
+/* Dropdown Styles */
+.dropdown {
+  padding-left: 3rem;
+  margin-top: 0.4rem;
+  transition: all 0.3s ease;
+}
+
+.show {
+  display: block;
+}
+
+.hide {
+  display: none;
+}
+
+.dropdown-icon {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  padding-left: 10px;
+  cursor: pointer;
+  padding-top: 5px;
+}
+
+.sub-nav-link {
+  font-size: 14px;
+  padding-left: 1rem;
+  margin-top: 0.3rem;
+  display: block;
+}
+
+/**layout css*/
+.main-content {
+  width: 100%;
+  background-color: #F5F6FA;
+}
+
+main {
+  padding-left: 20vw; /* matches sidebar width */
+  padding-top: 8vh;    /* matches top-nav height */
+  min-height: 100vh;
+}
