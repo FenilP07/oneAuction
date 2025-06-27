@@ -11,6 +11,9 @@ import RegistrationForm from "./pages/Register/RegistrationForm";
 import User from "./pages/User/user.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute .jsx";
 import AddCategory from "./pages/Categories/AddCategory.jsx";
+import Home from "./pages/Home/Home.jsx";
+import Demo from "./pages/DemoPages/HomeCheck.jsx";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
@@ -22,8 +25,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="register" element={<RegistrationForm />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
-         <Route path="/profile" element={<User />} />
-         <Route path="/category" element={<AddCategory />} />
+        <Route path="/profile" element={<User />} />
+        <Route path="/category" element={<AddCategory />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/demo" element={<Demo />} />
         <Route
           path="dashboard"
           element={
