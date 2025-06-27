@@ -14,11 +14,3 @@ body {
   color: #333;
   background-color: #f8f9fa;
 }
-
-.btn-register{
-    background-color: #a85a32;
-}
-
-.btn-register:hover{
-    background-color: #66351d;
-}

@@ -6,14 +6,16 @@ import cors from "cors";
 import { errorHandler } from "./middlewares/error.middlewares.js";
 import userRoutes from "./routes/user.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
+import itemRoutes from "./routes/item.routes.js";
+import adminItemRoutes from "./routes/admin.routes.js";
 import dotenv from "dotenv";
 
 
 const app = express();
-
+dotenv.config();
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5174",
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true,
   })
 );
@@ -43,6 +45,8 @@ app.use(
 
 app.use("/api/user/", userRoutes);
 app.use("/api/category/", categoryRoutes);
+app.use("/api/item/", itemRoutes);
+app.use("/api/admin/item/", adminItemRoutes);
 
 app.use(errorHandler);
 export { app };
