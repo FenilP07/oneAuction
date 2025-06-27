@@ -70,6 +70,11 @@ function Navbar() {
                     Category
                   </Link>
                 </li>
+                   <li className="nav-item">
+                  <Link className="nav-link" to="/admin">
+                    Dashboard
+                  </Link>
+                </li>
                
               </>
             )}

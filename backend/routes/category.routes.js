@@ -6,13 +6,15 @@ import {
   getCategoryById,
   updateCategory,
 } from "../controllers/categories.controllers.js";
+import upload from "../utils/multer.js"; 
 
 const router = Router();
 
-router.post("/create",createCategory);
+
+router.post("/create", upload.single("image"), createCategory);
 router.get("/", getAllCategory);
 router.get("/:id", getCategoryById);
-router.put("/:id", updateCategory);
+router.put("/:id", upload.single("image"), updateCategory);
 router.delete("/:id", deleteCategory);
 
 export default router;
