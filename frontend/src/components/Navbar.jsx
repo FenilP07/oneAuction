@@ -1,41 +1,32 @@
-import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "bootstrap/dist/js/bootstrap.bundle.min";
-import "bootstrap-icons/font/bootstrap-icons.css";
-import { logoutUser, getUserById } from "../services/userService";
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap/dist/js/bootstrap.bundle.min';
+import 'bootstrap-icons/font/bootstrap-icons.css';
+import { logoutUser } from '../services/userService.js';
+import useAuthStore from '../store/authStore.js';
 
 function Navbar() {
+  const { user, clearAuth } = useAuthStore();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const userId = localStorage.getItem("userId");
-
-  useEffect(() => {
-    if (!userId) return;
-    getUserById(userId)
-      .then((res) => {
-        setUser(res);
-      })
-      .catch((err) => {
-        console.error("Navbar user fetch error:", err);
-      });
-  }, [userId]);
 
   const handleLogout = async () => {
     try {
       await logoutUser();
-      navigate("/login");
+      clearAuth();
+      navigate('/login');
     } catch (error) {
-      console.error("Logout failed:", error.message);
-      navigate("/login");
+      console.error('Logout failed:', error.message);
+      clearAuth();
+      navigate('/login');
     }
   };
 
   return (
-    <nav className="navbar navbar-expand-lg bg-light navbar-light">
+    <nav className="navbar navbar-expand-lg bg-light navbar-light" aria-label="Main navigation">
       <div className="container-fluid">
-        <Link className="navbar-brand" to="/">
-          <img src="/images/AuctionLogo.png" alt="Logo" height="32" />
+        <Link className="navbar-brand" to="/" aria-label="OneAuction Home">
+          <img src="/images/AuctionLogo.png" alt="OneAuction Logo" height="32" />
         </Link>
 
         <button
@@ -51,26 +42,30 @@ function Navbar() {
         </button>
 
         <div className="collapse navbar-collapse" id="navbarNav">
-          {/* LEFT NAV ITEMS */}
+          {/* Left Nav Items */}
           <ul className="navbar-nav me-auto">
+           
             <li className="nav-item">
-              <Link className="nav-link" to="/">Home</Link>
-            </li>
-            <li className="nav-item">
-              <Link className="nav-link" to="/about">About Us</Link>
+              <Link className="nav-link" to="/about-us">
+                About Us
+              </Link>
             </li>
             {user && (
               <li className="nav-item">
-                <Link className="nav-link" to="/category">Category</Link>
+                <Link className="nav-link" to="/category">
+                  Category
+                </Link>
               </li>
             )}
           </ul>
 
-          {/* RIGHT SIDE LOGIN / PROFILE */}
+          {/* Right Side Login / Profile */}
           <ul className="navbar-nav ms-auto">
             {!user ? (
               <li className="nav-item">
-                <Link className="nav-link" to="/login">Login</Link>
+                <Link className="nav-link" to="/login">
+                  Login
+                </Link>
               </li>
             ) : (
               <li className="nav-item dropdown">
@@ -81,30 +76,39 @@ function Navbar() {
                   role="button"
                   data-bs-toggle="dropdown"
                   aria-expanded="false"
+                  aria-label={`User menu for ${user.profile?.firstName || 'User'}`}
                 >
                   {user.profile?.avatarUrl ? (
                     <img
                       src={user.profile.avatarUrl}
-                      alt="Avatar"
+                      alt={`${user.profile.firstName}'s avatar`}
                       className="rounded-circle me-2"
                       width="30"
                       height="30"
                     />
                   ) : (
-                    <i className="bi bi-person-circle me-2" style={{ fontSize: "1.5rem" }}></i>
+                    <i className="bi bi-person-circle me-2" style={{ fontSize: '1.5rem' }}></i>
                   )}
                   {user.profile?.firstName} {user.profile?.lastName}
                 </a>
                 <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                   <li>
-                    <Link className="dropdown-item" to="/dashboard">Dashboard</Link>
+                    <Link className="dropdown-item" to="/dashboard">
+                      Dashboard
+                    </Link>
                   </li>
                   <li>
-                    <Link className="dropdown-item" to="/profile">Profile</Link>
+                    <Link className="dropdown-item" to="/profile">
+                      Profile
+                    </Link>
                   </li>
-                  <li><hr className="dropdown-divider" /></li>
                   <li>
-                    <button className="dropdown-item" onClick={handleLogout}>Logout</button>
+                    <hr className="dropdown-divider" />
+                  </li>
+                  <li>
+                    <button className="dropdown-item" onClick={handleLogout} aria-label="Log out">
+                      Logout
+                    </button>
                   </li>
                 </ul>
               </li>

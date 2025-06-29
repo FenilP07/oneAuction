@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 import { FaFileInvoice, FaUserFriends, FaShoppingCart } from "react-icons/fa";
 import {  AiOutlineDown, AiOutlineUp } from "react-icons/ai";
 import { MdCategory } from "react-icons/md";
-import "./sidenavbar.css";
+import "../style/sidenavbar.css";
 
 
 const SideNavbar = () => {

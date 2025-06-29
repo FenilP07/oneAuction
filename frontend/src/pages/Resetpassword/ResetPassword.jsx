@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import FormInput from "../../components/FormInput.jsx";
-import Button from "../../components/Button.jsx";
-import Spinner from "../../components/Spinner.jsx";
-import validateForm from "../../utils/validateForm.js";
-import { resetPassword } from "../../services/userService.js";
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import FormInput from '../../components/FormInput.jsx';
+import Button from '../../components/Button.jsx';
+import Spinner from '../../components/Spinner.jsx';
+import validateForm from '../../utils/validateForm.js';
+import { resetPassword } from '../../services/userService.js';
+import './reset-password.css';
 
 const ResetPassword = () => {
   const [formData, setFormData] = useState({
-    password: "",
-    confirmPassword: "",
+    password: '',
+    confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { token } = useParams();
 
   useEffect(() => {
-    document.title = "OneAuction - Reset Password";
+    document.title = 'OneAuction - Reset Password';
     if (!token) {
       setMessage(
         <div className="text-danger text-center mb-3">
@@ -58,28 +59,27 @@ const ResetPassword = () => {
 
         setMessage(
           <div className="text-success text-center mb-3">
-            {data?.message || "Password reset successful! You can now log in."}
+            {data?.message || 'Password reset successful! You can now log in.'}
           </div>
         );
 
-        setFormData({ password: "", confirmPassword: "" });
+        setFormData({ password: '', confirmPassword: '' });
 
-        setTimeout(() => navigate("/login"), 2000);
+        setTimeout(() => navigate('/login'), 2000);
       } catch (error) {
-        const msg =
-          error.message || "Failed to reset password. Please try again.";
+        const msg = error.message || 'Failed to reset password. Please try again.';
         setMessage(<div className="text-danger text-center mb-3">{msg}</div>);
       } finally {
         setIsLoading(false);
       }
     } else {
-      setMessage("");
+      setMessage('');
     }
   };
 
   return (
-    <section className="register-page">
-      <form className="register-form" onSubmit={handleSubmit} noValidate>
+    <section className="reset-password-page">
+      <form className="reset-password-form" onSubmit={handleSubmit} noValidate>
         <section className="logo-container text-center">
           <h3>Reset Password</h3>
         </section>
@@ -127,13 +127,13 @@ const ResetPassword = () => {
           </div>
 
           <p className="text-center text-muted mt-3">
-            Remember your password?{" "}
+            Remember your password?{' '}
             <Link to="/login" className="text-primary text-decoration-none">
               Login
             </Link>
           </p>
           <p className="text-center text-muted mt-3">
-            Don't have an account?{" "}
+            Don't have an account?{' '}
             <Link to="/register" className="text-primary text-decoration-none">
               Register
             </Link>
