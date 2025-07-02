@@ -178,7 +178,9 @@ const loginUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   logger.info("Logout request received", {
     userId: req.user?._id,
-    headers: req.headers.authorization ? "Authorization header present" : "No Authorization header",
+    headers: req.headers.authorization
+      ? "Authorization header present"
+      : "No Authorization header",
   });
 
   const userId = req.user?._id;
@@ -206,7 +208,10 @@ const logoutUser = asyncHandler(async (req, res) => {
     token: accessToken,
     expiresAt: expiryDate,
   });
-  logger.info("Access token revoked", { revokedTokenId: revokedToken._id, token: accessToken });
+  logger.info("Access token revoked", {
+    revokedTokenId: revokedToken._id,
+    token: accessToken,
+  });
 
   logger.debug("Removing refresh token from user", { userId });
   const user = await User.findByIdAndUpdate(
@@ -219,7 +224,10 @@ const logoutUser = asyncHandler(async (req, res) => {
     logger.warn("Logout failed: User not found", { userId });
     throw new apiError(404, "User not found");
   }
-  logger.info("Refresh token removed from user", { userId, username: user.username });
+  logger.info("Refresh token removed from user", {
+    userId,
+    username: user.username,
+  });
 
   logger.debug("Clearing refreshToken cookie");
   res.clearCookie("refreshToken", {
@@ -230,7 +238,10 @@ const logoutUser = asyncHandler(async (req, res) => {
   });
   logger.info("Refresh token cookie cleared");
 
-  logger.info("User logged out successfully", { userId, username: user.username });
+  logger.info("User logged out successfully", {
+    userId,
+    username: user.username,
+  });
 
   return res
     .status(200)
@@ -372,6 +383,43 @@ const resetPassword = asyncHandler(async (req, res) => {
     .json(new APIResponse(200, null, "Password has been reset successfully."));
 });
 
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    return res
+      .status(401)
+      .json(new APIResponse(401, null, "Refresh token is required"));
+  }
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const user = await User.findById(decoded._id);
+    if (!user || user.refreshToken !== refreshToken) {
+      return res
+        .status(401)
+        .json(new APIResponse(401, null, "Invalid refresh token"));
+    }
+
+    const newAccessToken = jwt.sign(
+      { _id: user._id, role: user.role },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    return res
+      .status(200)
+      .json(
+        new APIResponse(200, { accessToken: newAccessToken }, "Token refreshed")
+      );
+  } catch (error) {
+    return res
+      .status(403)
+      .json(new APIResponse(403, null, "Invalid or expired refresh token"));
+  }
+});
+
 export {
   registerUser,
   loginUser,
@@ -379,4 +427,5 @@ export {
   getUserById,
   requestPasswordReset,
   resetPassword,
+  refreshAccessToken,
 };

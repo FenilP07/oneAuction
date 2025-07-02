@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 import { FaFileInvoice, FaUserFriends, FaShoppingCart } from "react-icons/fa";
 import {  AiOutlineDown, AiOutlineUp } from "react-icons/ai";
 import { MdCategory } from "react-icons/md";
-import "./sidenavbar.css";
+import "../style/sidenavbar.css";
 
 
 const SideNavbar = () => {
@@ -59,7 +59,7 @@ const SideNavbar = () => {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/categories/list" className="nav-link sub-nav-link">
+                  <NavLink to="/categorieslist" className="nav-link sub-nav-link">
                     Manage Categories
                   </NavLink>
                 </li>
