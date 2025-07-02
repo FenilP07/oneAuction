@@ -1,31 +1,17 @@
-/* register.css */
-
+/* Register page specific styles */
 .register-page {
-  width: 100vw;
-  height: 100vh;
-  background: url("/images/auct.png") no-repeat  right bottom;
-  display: grid;
-  place-content: center;
-}
-
-.register-page h3{
-  
-    font-family: serif;
-    font-weight: 700;
-
+  padding: var(--spacing-unit) * 2;
 }
 
 .register-form {
-  width: 90vw;
-  padding: 0.5rem 1rem;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.664) 2.12%,
-    rgba(255, 254, 254, 0) 98.19%
-  );
-  box-shadow: 15px 15px 40px -10px #1b1919;
-  backdrop-filter: blur(10px);
-  border-radius: 30px;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: var(--spacing-unit);
+}
+
+.logo-container h3 {
+  color: var(--secondary-color);
+  margin-bottom: var(--spacing-unit);
 }
 
 .register-page .form-wrapper {
@@ -43,27 +29,34 @@
   margin-top: 0.5em;
 }
 
-.btn-register {
-  border: none;
-  text-transform: uppercase;
-  margin-left: 0rem !important;
-  padding: 0.5rem 2rem;
-  border-radius: 18px;
-  font-weight: 700;
+.row > .col-md-6 {
+  padding: calc(var(--spacing-unit) / 2);
 }
 
 .register-actions {
-  gap: 1rem;
-  margin-top: 1rem;
-}
-  
-.register-form img{
-    width: 100px;
-    height: 100px;
-
+  margin-top: var(--spacing-unit);
 }
 
-@media screen and (min-width: 800px) {
+.btn-outline-light {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.btn-outline-light:hover {
+  background-color: #e59400;
+  border-color: #e59400;
+}
+
+img.img-fluid {
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .col-md-6.bg-black {
+    padding: var(--spacing-unit);
+  }
+
   .register-form {
     width: 30vw;
     padding: 1rem;
@@ -73,7 +66,8 @@
     max-width: 70%;
   }
 
-  .register-actions {
-    flex-direction: row !important;
+  .row > .col-md-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
   }
 }

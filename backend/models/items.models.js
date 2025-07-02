@@ -12,6 +12,11 @@ const itemSchema = new Schema(
       enum: ["available", "sold", "pending_approval", "rejected"],
       default: "pending_approval",
     },
+    approval_reason: {
+      type: String,
+      enum: ["create", "update", "delete"],
+      default: null
+    },
     starting_bid: {
       type: Number,
       required: true,

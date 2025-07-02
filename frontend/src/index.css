@@ -15,10 +15,62 @@ body {
   background-color: #f8f9fa;
 }
 
-.btn-register{
-    background-color: #a85a32;
+/* Custom theme variables */
+:root {
+  --primary-color: #1da1f2;
+  --secondary-color: #14171a;
+  --accent-color: #ffac33;
+  --spacing-unit: 1rem;
+  --border-radius: 0.25rem;
 }
 
-.btn-register:hover{
-    background-color: #66351d;
+/* Apply custom styles globally */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--secondary-color);
+  margin-bottom: var(--spacing-unit);
+}
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: var(--accent-color);
+}
+
+/* Global form styles */
+.form-wrapper {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: var(--border-radius);
+  padding: calc(var(--spacing-unit) * 2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.form-input label {
+  color: #fff;
+  font-weight: 500;
+}
+
+.form-input input {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+  padding: 0.5rem;
+  width: 100%;
+}
+
+.form-input input:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 5px rgba(29, 161, 242, 0.5);
+}
+
+.btn {
+  transition: all 0.3s ease;
+}
+
+.btn:hover {
+  filter: brightness(90%);
 }

@@ -10,6 +10,7 @@ import upload from "../utils/multer.js";
 
 const router = Router();
 
+
 router.post("/create", upload.single("image"), createCategory);
 router.get("/", getAllCategory);
 router.get("/:id", getCategoryById);
