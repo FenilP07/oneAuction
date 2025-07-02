@@ -20,7 +20,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
     ]);
 
     const currentDate = new Date().toISOString().split('T')[0]; // 2025-07-02
-    const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }).slice(0, 5); // 17:56
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }).slice(0, 5); // 18:18
 
     const handleAuctionCreate = (data) => {
         onAuctionCreate(data);
@@ -64,6 +64,15 @@ const AuctionModal = ({ onAuctionCreate }) => {
         return itemMap
             .sort((a, b) => a.seq - b.seq)
             .map(sorted => items.find(item => item.id === sorted.id));
+    };
+
+    // Validate sequence numbers
+    const validateSequence = () => {
+        const numItems = auctionData.items.length;
+        if (numItems === 0) return true;
+        const sequenceSet = new Set(auctionData.sequence);
+        const expectedSequence = Array.from({ length: numItems }, (_, i) => i + 1);
+        return sequenceSet.size === numItems && auctionData.sequence.every(seq => expectedSequence.includes(seq));
     };
 
     useEffect(() => {
@@ -124,6 +133,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                     </div>
                                 </div>
                             ) : !selectedItem ? (
+                                <>
                                 <div className="row row-cols-1 row-cols-md-3 g-4">
                                     {auctionType === 'Live' ? (
                                         items.map((item) => (
@@ -159,6 +169,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                             </div>
                                         ))
                                     )}
+                                    
+                                </div>
+                                <div className='row justify-content-end'>
                                     <div className="text-end mt-3">
                                         <button
                                             className="btn btn-primary"
@@ -176,11 +189,19 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                         </button>
                                     </div>
                                 </div>
+                                </>
                             ) : (
                                 <div className="card">
                                     <div className="card-body">
                                         <h4 className="card-title">Create {auctionType} Auction</h4>
-                                        <form onSubmit={(e) => { e.preventDefault(); handleAuctionCreate(auctionData); }}>
+                                        <form onSubmit={(e) => {
+                                            e.preventDefault();
+                                            if (auctionType === 'Live' && !validateSequence()) {
+                                                alert('Please ensure each item has a unique sequence number from 1 to ' + auctionData.items.length + '.');
+                                                return;
+                                            }
+                                            handleAuctionCreate(auctionData);
+                                        }}>
                                             <div className="row g-3">
                                                 {auctionType === 'Live' && selectedItem.id === 'multiple' && (
                                                     <div className="col-12">
@@ -195,6 +216,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                                     value={auctionData.sequence[index] || (index + 1)}
                                                                     onChange={(e) => handleSequenceChange(index, e.target.value)}
                                                                     min="1"
+                                                                    max={auctionData.items.length}
                                                                 />
                                                                 <span>)</span>
                                                             </div>
