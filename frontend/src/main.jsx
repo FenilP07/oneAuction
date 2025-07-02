@@ -10,9 +10,7 @@ import "./index.css";
 import RegistrationForm from "./pages/Register/RegistrationForm";
 import User from "./pages/User/user.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute .jsx";
-
-import AddCategory from "./pages/Categories/AddCategory.jsx";
-
+import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
 import AuctioneerItemPage from "./pages/AuctioneerItemPage/AuctioneerItemPage.jsx";
 import Home from "./pages/Home/Home.jsx";
 
