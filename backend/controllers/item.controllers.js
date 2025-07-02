@@ -107,4 +107,79 @@ const updateItem = asyncHandler(async (req, res) => {
     .json(new APIResponse(200, { item }, "Item updated and pending approval"));
 });
 
-export { createItem, updateItem };
+
+/**
+ * @desc Get all available items for users with filters and pagination
+ * @route GET /api/item/all
+ */
+const getAllItems = asyncHandler(async (req, res) => {
+  logger.info("User request to fetch items with filters", { query: req.query });
+
+  const { category_id, name, minBid, maxBid, page = 1, limit = 10 } = req.query;
+
+  const filters = { status: "available" };
+
+  if (category_id) filters.category_id = category_id;
+
+  if (name) {
+    filters.name = { $regex: name, $options: "i" };  // case-insensitive partial match
+  }
+
+  if (minBid) filters.starting_bid = { ...filters.starting_bid, $gte: parseFloat(minBid) };
+  if (maxBid) filters.starting_bid = { ...filters.starting_bid, $lte: parseFloat(maxBid) };
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const totalItems = await Item.countDocuments(filters);
+  const items = await Item.find(filters)
+    .populate("category_id", "name")
+    .skip(skip)
+    .limit(parseInt(limit))
+    .sort({ createdAt: -1 });
+
+  logger.info(`Retrieved ${items.length} items with filters`);
+
+  return res.status(200).json(
+    new APIResponse(200, {
+      totalItems,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalItems / limit),
+      items,
+    },
+    "Items fetched successfully")
+  );
+});
+
+/**
+ * @desc Get all items created by the logged-in user (auctioneer)
+ * @route GET /api/item/my-items
+ */
+const getMyItems = asyncHandler(async (req, res) => {
+  logger.info("Fetching items for logged-in user", { userId: req.user._id });
+
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const totalItems = await Item.countDocuments({ auctioneer_id: req.user._id });
+
+  const items = await Item.find({ auctioneer_id: req.user._id })
+    .populate("category_id", "name")
+    .skip(skip)
+    .limit(parseInt(limit))
+    .sort({ createdAt: -1 });
+
+  logger.info(`Retrieved ${items.length} items for user`, { userId: req.user._id });
+
+  return res.status(200).json(
+    new APIResponse(200, {
+      totalItems,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalItems / limit),
+      items,
+    }, "User's items fetched successfully")
+  );
+});
+
+
+export { createItem, updateItem, getAllItems, getMyItems };
