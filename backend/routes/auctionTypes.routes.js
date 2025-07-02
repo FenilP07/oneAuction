@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   createAuctionType,
   getAllAuctionTypes,
+  updateAuctionType
 } from "../controllers/auctionType.controllers.js";
 
 const router = Router();
