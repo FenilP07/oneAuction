@@ -10,7 +10,7 @@ import "./index.css";
 import RegistrationForm from "./pages/Register/RegistrationForm";
 import User from "./pages/User/user.jsx";
 import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
-import AuctioneerItemPage from "./pages/ItemListingPage/AuctioneerItemPage.jsx";
+import AuctioneerItemPage from "./pages/AuctioneerItemPage/AuctioneerItemPage.jsx";
 import Home from "./pages/Home/Home.jsx";
 import AdminDashboard from "./pages/Admin/AdminDasboard.jsx";
 import CategoryList from "./pages/Admin/Categories/CategoryList.jsx";
