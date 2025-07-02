@@ -12,6 +12,7 @@ import User from "./pages/User/user.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute .jsx";
 import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
 import AdminDashboard from "./pages/Admin/AdminDasboard.jsx";
+import CategoryList from "./pages/Admin/Categories/CategoryList.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -27,6 +28,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
          <Route path="/profile" element={<User />} />
          <Route path="/addcategory" element={<AddCategory />} />
           <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/categorieslist" element={<CategoryList/>} />
+
         <Route
           path="dashboard"
           element={

@@ -24,13 +24,13 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrors({ ...errors, [e.target.name]: "" });
-    setMessage(''); // Clear message on input change
+    setMessage("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage('');
+    setMessage("");
     setErrors({});
 
     const validationErrors = validateForm(formData);
@@ -50,7 +50,7 @@ const Login = () => {
 
       setAuthToken(accessToken);
       localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("userId", response.data.user._id);     // ✅ correct
+      localStorage.setItem("userId", response.data.user._id);
 
       setMessage(
         <div className="alert alert-success text-center mb-3">
@@ -62,16 +62,15 @@ const Login = () => {
       const backendMessage = error.message;
       console.error("Login error:", backendMessage);
 
-      // Map specific backend errors to form fields
       let newErrors = {};
-      if (backendMessage.includes('Invalid email/username or password')) {
-        newErrors.identifier = 'Invalid email/username or password';
-        newErrors.password = 'Invalid email/username or password';
-      } else if (backendMessage.includes('Identifier and password are required')) {
-        newErrors.identifier = !formData.identifier ? 'Email or Username is required' : '';
-        newErrors.password = !formData.password ? 'Password is required' : '';
-      } else if (backendMessage.includes('Account is not active')) {
-        newErrors.identifier = 'Account is not active';
+      if (backendMessage.includes("Invalid email/username or password")) {
+        newErrors.identifier = "Invalid email/username or password";
+        newErrors.password = "Invalid email/username or password";
+      } else if (backendMessage.includes("Identifier and password are required")) {
+        newErrors.identifier = !formData.identifier ? "Email or Username is required" : "";
+        newErrors.password = !formData.password ? "Password is required" : "";
+      } else if (backendMessage.includes("Account is not active")) {
+        newErrors.identifier = "Account is not active";
       } else {
         setMessage(<div className="alert alert-danger text-center mb-3">{backendMessage}</div>);
       }
@@ -82,14 +81,14 @@ const Login = () => {
   };
 
   return (
-    <section className="register-page">
-      <form className="login-form" onSubmit={handleSubmit} noValidate>
-        <section className="logo-container text-center">
+    <section className="login-page">
+      <form className="login-form-container" onSubmit={handleSubmit} noValidate>
+        <section className="login-logo text-center">
           <h3>Login</h3>
         </section>
 
-        <div className="form-wrapper">
-          {message && <div className="mb-3">{message}</div>}
+        <div className="login-form-wrapper">
+          {message && <div className="login-message">{message}</div>}
 
           <FormInput
             label="Email or Username*"
@@ -110,10 +109,10 @@ const Login = () => {
             error={errors.password}
           />
 
-          <div className="login-actions d-flex flex-column justify-content-between align-items-center">
+          <div className="login-actions justify-content-between">
             <Button
               type="submit"
-              className="btn btn-info btn-login d-flex align-items-center"
+              className="btn btn-info login-button d-flex align-items-center"
               disabled={isLoading}
             >
               <>
@@ -128,10 +127,7 @@ const Login = () => {
           </div>
 
           <p className="text-center text-muted mt-3">
-            <Link
-              to="/forgot-password"
-              className="text-primary text-decoration-none"
-            >
+            <Link to="/forgot-password" className="text-primary text-decoration-none">
               Forgot Password?
             </Link>
           </p>

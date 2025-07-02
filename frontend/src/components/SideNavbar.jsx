@@ -59,7 +59,7 @@ const SideNavbar = () => {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/categories/list" className="nav-link sub-nav-link">
+                  <NavLink to="/categorieslist" className="nav-link sub-nav-link">
                     Manage Categories
                   </NavLink>
                 </li>
