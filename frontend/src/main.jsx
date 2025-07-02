@@ -13,6 +13,7 @@ import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
 import AuctioneerItemPage from "./pages/ItemListingPage/AuctioneerItemPage.jsx";
 import Home from "./pages/Home/Home.jsx";
 import AdminDashboard from "./pages/Admin/AdminDasboard.jsx";
+import CategoryList from "./pages/Admin/Categories/CategoryList.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

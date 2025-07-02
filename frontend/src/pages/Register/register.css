@@ -14,8 +14,19 @@
   margin-bottom: var(--spacing-unit);
 }
 
-.form-wrapper {
-  text-align: center;
+.register-page .form-wrapper {
+  margin:2rem auto;
+}
+.row-name {
+    display: flex;
+
+    column-gap: 20px;
+}
+
+.register-page label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-top: 0.5em;
 }
 
 .row > .col-md-6 {
@@ -47,7 +58,12 @@ img.img-fluid {
   }
 
   .register-form {
-    max-width: 100%;
+    width: 30vw;
+    padding: 1rem;
+  }
+
+  .register-page .form-wrapper {
+    max-width: 70%;
   }
 
   .row > .col-md-6 {
