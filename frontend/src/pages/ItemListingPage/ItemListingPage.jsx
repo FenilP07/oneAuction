@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-const AuctioneerItemPage = () => {
+const ItemListingPage = () => {
     const [showForm, setShowForm] = useState(false);
     const [formData, setFormData] = useState({
         category: '',
@@ -192,4 +192,4 @@ const AuctioneerItemPage = () => {
     );
 };
 
-export default AuctioneerItemPage;
+export default ItemListingPage;

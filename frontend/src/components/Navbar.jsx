@@ -54,16 +54,16 @@ function Navbar() {
 								About Us
 							</NavLink>
 						</li>
+						<li className="nav-item">
+							<NavLink className="nav-link fw-bold" to="/browseAuctions" activeClassName="active">
+								Auctions
+							</NavLink>
+						</li>
 						{user && (
 							<>
 								<li className="nav-item">
 									<NavLink className="nav-link fw-bold" to="/dashboard" activeClassName="active">
 										Dashboard
-									</NavLink>
-								</li>
-								<li className="nav-item">
-									<NavLink className="nav-link fw-bold" to="/category" activeClassName="active">
-										Category
 									</NavLink>
 								</li>
 							</>
