@@ -14,6 +14,7 @@ import itemRoutes from "./routes/item.routes.js";
 import adminItemRoutes from "./routes/admin.routes.js";
 import auctionTypeRoutes from "./routes/auctionTypes.routes.js";
 import auctionRoutes from "./routes/auction.routes.js";
+import auctionSessionRoutes from "./routes/auctionSession.routes.js"
 
 const app = express();
 
@@ -54,14 +55,8 @@ app.use("/api/item/", itemRoutes);
 app.use("/api/admin/item/", adminItemRoutes);
 app.use("/api/auctionType/", auctionTypeRoutes);
 app.use("/api/auction/",auctionRoutes)
+app.use("/api/auctionSession/", auctionSessionRoutes);
 
 app.use(errorHandler);
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  logger.info(
-    `Server running on port ${PORT} in ${process.env.NODE_ENV || "development"} mode`
-  );
-});
 
 export { app };

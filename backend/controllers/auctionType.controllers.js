@@ -4,10 +4,10 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 // Create Auction Type
 const createAuctionType = asyncHandler(async (req, res) => {
-  const { name, description } = req.body;
+  const { type_name, description } = req.body;
 
   const type = await AuctionTypes.create({
-    name,
+    type_name,
     description,
   });
 
@@ -28,11 +28,11 @@ const getAllAuctionTypes = asyncHandler(async (req, res) => {
 // Update Auction Type
 const updateAuctionType = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, description, is_active } = req.body;
+  const { type_name, description, is_active } = req.body;
 
   const updatedType = await AuctionTypes.findByIdAndUpdate(
     id,
-    { name, description, is_active },
+    { type_name, description, is_active },
     { new: true, runValidators: true }
   );
 
