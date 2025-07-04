@@ -7,23 +7,69 @@ import logger from "../utils/logger.js";
  * @desc Fetch all items with 'pending_approval' status for admin review
  * @route GET /api/admin/items/pending
  */
+
+/**
+ * @desc Fetch all items with 'pending_approval' status for admin review
+ *        and return item status stats
+ * @route GET /api/admin/items/pending
+ */
 const getPendingApprovalItems = asyncHandler(async (req, res) => {
   logger.info("Admin request to fetch pending approval items");
 
   const items = await Item.find({ status: "pending_approval" }).populate("category_id", "name");
 
-  if (!items.length) {
-    logger.info("No pending approval items found");
-    return res
-      .status(200)
-      .json(new APIResponse(200, { items: [] }, "No pending approval items found"));
-  }
+  // 🔢 Use aggregation to count items by status
+  const statusCounts = await Item.aggregate([
+    {
+      $group: {
+        _id: "$status",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  //  Format stats
+  const stats = {
+    total: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+  };
+
+  statusCounts.forEach(({ _id, count }) => {
+    stats.total += count;
+    if (_id === "available") stats.approved = count;
+    else if (_id === "pending_approval") stats.pending = count;
+    else if (_id === "rejected") stats.rejected = count;
+  });
 
   logger.info(`Retrieved ${items.length} pending approval items`);
-  return res
-    .status(200)
-    .json(new APIResponse(200, { items }, "Pending approval items fetched successfully"));
+
+  return res.status(200).json(
+    new APIResponse(
+      200,
+      { items, stats }, // 👈 include both items and stats
+      "Pending approval items and stats fetched successfully"
+    )
+  );
 });
+// const getPendingApprovalItems = asyncHandler(async (req, res) => {
+//   logger.info("Admin request to fetch pending approval items");
+
+//   const items = await Item.find({ status: "pending_approval" }).populate("category_id", "name");
+
+//   if (!items.length) {
+//     logger.info("No pending approval items found");
+//     return res
+//       .status(200)
+//       .json(new APIResponse(200, { items: [] }, "No pending approval items found"));
+//   }
+
+//   logger.info(`Retrieved ${items.length} pending approval items`);
+//   return res
+//     .status(200)
+//     .json(new APIResponse(200, { items }, "Pending approval items fetched successfully"));
+// });
 
 /**
  * @desc Approve or reject an item approval request

@@ -1,6 +1,6 @@
 import React from "react";
 import SideNavbar from "./SideNavbar"; //  for Sidebar
-import "../style/sidenavbar.css"
+import "./sidenavbar.css"
 
 const Layout = ({ children }) => {
   return (

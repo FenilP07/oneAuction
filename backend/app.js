@@ -24,6 +24,8 @@ app.use(
   })
 );
 
+app.use('/uploads', express.static('uploads')); 
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static("public"));
@@ -52,6 +54,8 @@ app.use("/api/user/", userRoutes);
 app.use("/api/category/", categoryRoutes);
 app.use("/api/item/", itemRoutes);
 app.use("/api/admin/item/", adminItemRoutes);
+
+
 app.use("/api/auctionType/", auctionTypeRoutes);
 app.use("/api/auction/",auctionRoutes)
 

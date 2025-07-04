@@ -5,11 +5,12 @@
   height: 8vh;
   display: flex;
   flex-direction: row;
-  /* position: fixed; */
+  position: fixed;
   box-shadow: 0 0px 15px #a85a32;
   z-index: 10;
   color: white;
   margin-top: -1rem;
+    
 }
 
 .top-nav p {
@@ -94,7 +95,7 @@
   height: 100vh;
   position: fixed;
   background-color: #FFFFFF;
-  /* margin-top: -2.5rem; */
+  margin-top: -2.5rem;
   transition: all 500ms;
 }
 
@@ -113,7 +114,7 @@ span.cate {
 }
 
 main {
-  padding-left: 20vw;
+  
   width: 100%;
   background-color: #F5F6FA;
 }
@@ -152,12 +153,9 @@ main {
 
 /**layout css*/
 .main-content {
+  padding-left:20vw;
   width: 100%;
   background-color: #F5F6FA;
 }
 
-main {
-  padding-left: 20vw; /* matches sidebar width */
-  padding-top: 8vh;    /* matches top-nav height */
-  min-height: 100vh;
-}
+
