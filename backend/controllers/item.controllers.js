@@ -108,6 +108,33 @@ const updateItem = asyncHandler(async (req, res) => {
 });
 
 
+
+//get item by id
+export const getItemById = asyncHandler(async (req, res) => {
+  const item = await Item.findById(req.params.id).populate("category_id auctioneer_id");
+  if (!item) throw new apiError(404, "Item not found");
+  return res.status(200).json(new APIResponse(200, { item }));
+});
+
+export const approveItem = asyncHandler(async (req, res) => {
+  const item = await Item.findById(req.params.id);
+  if (!item) throw new apiError(404, "Item not found");
+  item.status = "available";
+  await item.save();
+  return res.status(200).json(new APIResponse(200, { item }, "Item approved"));
+});
+
+export const rejectItem = asyncHandler(async (req, res) => {
+  const item = await Item.findById(req.params.id);
+  if (!item) throw new apiError(404, "Item not found");
+  item.status = "rejected";
+  await item.save();
+  return res.status(200).json(new APIResponse(200, { item }, "Item rejected"));
+});
+
+
+export { createItem, updateItem };
+=======
 /**
  * @desc Get all available items for users with filters and pagination
  * @route GET /api/item/all
@@ -183,3 +210,4 @@ const getMyItems = asyncHandler(async (req, res) => {
 
 
 export { createItem, updateItem, getAllItems, getMyItems };
+

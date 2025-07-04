@@ -33,7 +33,7 @@ const CategoryList = () => {
 
   return (
     <Layout>
-      <div className="main-content">
+      <div className="main-content-categorylist">
         <h3 className="category-title">Categories</h3>
 
         <div className="category-container">
