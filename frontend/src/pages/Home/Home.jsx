@@ -1,6 +1,7 @@
     import React from 'react';
     import { Link } from 'react-router-dom';
     import Navbar from '../../components/Navbar.jsx';
+    import Footer from '../../components/Footer.jsx';
     import 'bootstrap/dist/css/bootstrap.min.css';
     import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
     import { faArrowTrendUp, faUsers, faMoneyBillTransfer, faEarthAmericas, faGavel, faUsersViewfinder, faArrowRight } from '@fortawesome/free-solid-svg-icons';
@@ -312,6 +313,7 @@
                         </div>
                     </section>
                 </main>
+                <Footer />
             </>
         );
     };
