@@ -1,10 +1,10 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
-
+import Item from "../models/items.models.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import Auction from "../models/auction.models.js";
-
 import AuctionTypes from "../models/auctionTypes.models.js";
+import mongoose from "mongoose";
 const createAuction = asyncHandler(async (req, res) => {
   const {
     auctionType_id,
@@ -21,9 +21,9 @@ const createAuction = asyncHandler(async (req, res) => {
     !auction_start_time ||
     !auction_end_time
   ) {
-    throw new Error(apiError(400, "Missing required fields"));
+    throw new apiError(400, "Missing required fields");
   }
-  const auctionType = await AuctionTypes.findOne({ auctionType_id }).lean();
+  const auctionType = await AuctionTypes.findById(auctionType_id).lean();
   if (!auctionType) {
     throw new apiError(404, "Auction type not found");
   }
@@ -59,8 +59,8 @@ const createAuction = asyncHandler(async (req, res) => {
       });
     }
     const items = await Item.find({
-      item_id: { $in: settings.item_ids },
-      item_status: "available",
+      _id: { $in: settings.item_ids.map(id =>new mongoose.Types.ObjectId(id)) },
+  status: "available",
     }).lean();
     if (items.length !== settings.item_ids.length) {
       return res.status(400).json({
@@ -85,8 +85,8 @@ const createAuction = asyncHandler(async (req, res) => {
       });
     }
     const item = await Item.findOne({
-      item_id: settings.item_id,
-      item_status: "available",
+     _id: new mongoose.Types.ObjectId(settings.item_id),
+  status: "available",
     }).lean();
     if (!item) {
       return res.status(400).json({

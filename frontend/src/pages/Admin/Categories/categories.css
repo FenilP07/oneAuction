@@ -56,7 +56,6 @@ input[type="url"] {
   font-size: 0.85rem;
   margin-bottom: 1rem;
 }
-
 /*category list */
 .main-content {
   padding: 20px;
@@ -214,5 +213,3 @@ input[type="url"] {
   font-weight: bold;
   z-index: 2;
 }
-
-

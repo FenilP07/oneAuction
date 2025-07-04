@@ -14,7 +14,7 @@ const itemSchema = new Schema(
     },
     approval_reason: {
       type: String,
-      enum: ["create", "update", "delete"],
+      enum: ["create", "update", "delete",null],
       default: null
     },
     starting_bid: {
