@@ -8,3 +8,11 @@
     border-color: #28a745;
     /* Bootstrap success green */
 }
+
+.homePartnerLogo{
+    background-size: contain;
+}
+.partnerImg{
+    height: 50px;
+    width: auto;
+}
