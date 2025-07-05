@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar.jsx';
+import Footer from '../../components/Footer.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUsers, faArrowTrendUp, faGavel } from '@fortawesome/free-solid-svg-icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -56,7 +57,7 @@ const BrowseAuctions = () => {
 			<Navbar />
             <h2 className="text-center fw-bold textSecond my-5"><FontAwesomeIcon className='me-2' icon={faGavel} />Browse Auctions</h2>
             
-            <section className="container-fluid bgOne">
+            <section className="container-fluid bgSecond">
                 {/* Filter Section */}
                 <div className="row g-3 mb-4 py-4 px-5">
                     <div className="col-12 col-md-6">
@@ -122,6 +123,7 @@ const BrowseAuctions = () => {
                     ))}
                 </div>
             </section>
+            <Footer />
         </>
     );
 };

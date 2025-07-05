@@ -18,7 +18,7 @@ body {
 /* Custom theme variables */
 :root {
   --bgOne: #a85a32; /*cyan : 008B8B , teal :009688, ocen blue: 0077B6 */
-  --bgSecond: #ffffff;
+  --bgSecond: #f4e4d4;
   --textOne: #ffffff;
   --textsecond: #a85a32;
 
