@@ -17,10 +17,10 @@ body {
 
 /* Custom theme variables */
 :root {
-  --bgOne: #008B8B; /*cyan : 008B8B , teal :009688, ocen blue: 0077B6 */
-  --bgSecond: #ffffff;
+  --bgOne: #a85a32; /*cyan : 008B8B , teal :009688, ocen blue: 0077B6 */
+  --bgSecond: #f4e4d4;
   --textOne: #ffffff;
-  --textsecond: #008B8B;
+  --textsecond: #a85a32;
 
   --accent-color: #ffac33;
   --spacing-unit: 1rem;
