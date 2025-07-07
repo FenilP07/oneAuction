@@ -14,12 +14,16 @@
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
     "axios": "^1.9.0",
-    "bootstrap": "^5.3.6",
+    "bootstrap": "^5.3.7",
     "bootstrap-icons": "^1.13.1",
+    "formik": "^2.4.6",
+    "lucide-react": "^0.525.0",
     "react": "^19.1.0",
+    "react-bootstrap": "^2.10.10",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.2",
+    "yup": "^1.6.1",
     "zustand": "^5.0.6"
   },
   "devDependencies": {

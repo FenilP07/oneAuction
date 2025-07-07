@@ -6,7 +6,7 @@ import {
   getCategoryById,
   updateCategory,
 } from "../controllers/categories.controllers.js";
-import upload from "../utils/multer.js"; 
+import upload from "../utils/cloudinary.js";
 
 const router = Router();
 

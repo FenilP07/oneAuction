@@ -3,6 +3,7 @@ backend/node_modules/
 frontend/node_modules/
 backend/uploads
 
+node_modules
 # Other common ignores
 .env
 .env.local
