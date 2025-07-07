@@ -22,14 +22,16 @@ router.post(
   createItem
 );
 router.put("/:id", authenticatedMiddleware, updateItem);
+router.get("/my-items", authenticatedMiddleware, getMyItems);
+router.get("/all", getAllItems);
 
 router.get("/:id", authenticatedMiddleware, getItemById);
 router.post("/:id/approve", authenticatedMiddleware, approveItem);
 router.post("/:id/reject", authenticatedMiddleware, rejectItem);
 
-router.get("/my-items", authenticatedMiddleware, getMyItems);
 
-// Public route for users to fetch available items with filters
-router.get("/all", getAllItems);
+
+
+
 
 export default router;

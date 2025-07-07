@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "cloudinary": "^1.41.3",
-    "jwt-decode": "^4.0.0",
-    "multer-storage-cloudinary": "^4.0.0"
-  }
-}
