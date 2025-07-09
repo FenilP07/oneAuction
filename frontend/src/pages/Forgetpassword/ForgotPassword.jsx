@@ -5,6 +5,8 @@ import Button from '../../components/Button.jsx';
 import Spinner from '../../components/Spinner.jsx';
 import validateForm from '../../utils/validateForm.js';
 import { requestPasswordReset } from '../../services/userService.js';
+import Navbar from '../../components/Navbar.jsx';
+import Footer from '../../components/Footer.jsx';
 import './forgot-password.css';
 
 const ForgotPassword = () => {
@@ -50,60 +52,66 @@ const ForgotPassword = () => {
   };
 
   return (
-    <section className="forgot-password-page">
-      <form className="forgot-password-form" onSubmit={handleSubmit} noValidate>
-        <section className="logo-container text-center">
-          <h3>Forgot Password</h3>
-        </section>
+    <>
+      <Navbar />
+      <section className="Container-fluid">
+        <div className='min-vh-100 d-flex justify-content-center align-items-center bgSecond py-5'>
+        <form className="p-4 bg-white rounded shadow my-5" onSubmit={handleSubmit} noValidate>
+          <section className="text-center py-5">
+            <h3 className="textSecond fw-bold">Forgot Password</h3>
+          </section>
 
-        <div className="form-wrapper">
-          <p className="text-center text-muted mb-4">
-            Enter your email address to receive a password reset link.
-          </p>
+          <div className="form-wrapper textSecond">
+            <p className="text-center textSecond mb-4">
+              Enter your email address to receive a password reset link.
+            </p>
 
-          <FormInput
-            label="Email Address*"
-            id="email"
-            name="email"
-            type="email"
-            value={formData.email}
-            onChange={handleChange}
-            error={errors.email}
-          />
+            <FormInput
+              label="Email Address*"
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              error={errors.email}
+            />
 
-          {message}
+            {message}
 
-          <div className="register-actions d-flex flex-column justify-content-between align-items-center">
-            <Button
-              type="submit"
-              className="btn btn-info btn-register d-flex align-items-center"
-            >
-              <>
-                Send Reset Link
-                {isLoading && (
-                  <span className="ms-2">
-                    <Spinner />
-                  </span>
-                )}
-              </>
-            </Button>
+            <div className="register-actions d-flex flex-column justify-content-between align-items-center">
+              <Button
+                type="submit"
+                className="btn btn-outline-success btn-register d-flex align-items-center"
+              >
+                <>
+                  Send Reset Link
+                  {isLoading && (
+                    <span className="ms-2">
+                      <Spinner />
+                    </span>
+                  )}
+                </>
+              </Button>
+            </div>
+
+            <p className="text-center text-black mt-3">
+              Remember your password?{' '}
+              <Link to="/login" className="textSecond text-decoration-none">
+                Login
+              </Link>
+            </p>
+            <p className="text-center text-black mt-3">
+              Don't have an account?{' '}
+              <Link to="/register" className="textSecond text-decoration-none">
+                Register
+              </Link>
+            </p>
           </div>
-
-          <p className="text-center text-muted mt-3">
-            Remember your password?{' '}
-            <Link to="/login" className="text-primary text-decoration-none">
-              Login
-            </Link>
-          </p>
-          <p className="text-center text-muted mt-3">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary text-decoration-none">
-              Register
-            </Link>
-          </p>
+        </form>
         </div>
-      </form>
-    </section>
+      </section>
+      <Footer />
+    </>
   );
 };
 
