@@ -97,7 +97,7 @@ const Login = () => {
 							Login
 						</h3>
 						<form className="login-form" onSubmit={handleSubmit} noValidate aria-labelledby="login-form-title">
-							<div className="form-wrapper">
+							<div className="form-wrapper textOne">
 								{message && <div className="mb-3">{message}</div>}
 								<FormInput
 									label="Email or Username*"
