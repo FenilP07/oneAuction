@@ -1,114 +1,93 @@
-import mongoose, { Schema } from "mongoose";
-import AuctionTypes from "./auctionTypes.models.js";
+import mongoose from "mongoose";
+import AuctionType from "./auctionTypes.models.js";
 
-const auctionSchema = new Schema(
-  {
-    auctioneer_id: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    auctionType_id: {
-      type: Schema.Types.ObjectId,
-      ref: "AuctionType", // Correct ref to match your AuctionType model
-      required: true,
-    },
-    auction_title: {
-      type: String,
-      required: true,
-      trim: true,
-      minlength: 3,
-      maxlength: 100,
-    },
-    auction_status: {
-      type: String,
-      enum: ["upcoming", "active", "completed", "cancelled"],
-      default: "upcoming",
-      index: true,
-    },
-    auction_start_time: {
-      type: Date,
-      required: true,
-      index: true,
-    },
-    auction_end_time: {
-      type: Date,
-      required: true,
-    },
-    settings: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
-    auction_description: {
-      type: String,
-      trim: true,
-      maxlength: 500,
-    },
+const auctionSchema = new mongoose.Schema({
+  auctioneer_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    index: true
   },
-  {
-    timestamps: true,
-  }
-);
-
-// Pre-save validation middleware
-auctionSchema.pre("save", async function (next) {
-  // Use imported model directly and correct field name
-  const auctionType = await AuctionTypes.findById(this.auctionType_id);
-  if (!auctionType) {
-    return next(new Error("Invalid auction type"));
-  }
-
-  const { type_name } = auctionType;
-
-  if (type_name === "live") {
-    if (
-      !this.settings.item_ids ||
-      !Array.isArray(this.settings.item_ids) ||
-      this.settings.item_ids.length === 0
-    ) {
-      return next(new Error("item_ids required for live auctions"));
-    }
-
-    // Fixed: Use _id instead of item_id
-    const itemsCount = await mongoose
-      .model("Item")
-      .countDocuments({ 
-        _id: { $in: this.settings.item_ids },
-        status: "available" // Also validate status
-      });
-
-    if (itemsCount !== this.settings.item_ids.length) {
-      return next(new Error("Invalid item_ids"));
-    }
-
-    this.settings.current_item_id =
-      this.settings.current_item_id || this.settings.item_ids[0];
-  } else if (["sealed_bid", "single_timed_item"].includes(type_name)) {
-    if (!this.settings.item_id) {
-      return next(
-        new Error("item_id required for sealed bid or single timed item auctions")
-      );
-    }
-
-    // Fixed: Use _id instead of item_id
-    const item = await mongoose
-      .model("Item")
-      .findOne({ 
-        _id: this.settings.item_id,
-        status: "available" // Also validate status
-      });
-    if (!item) {
-      return next(new Error("Invalid item_id"));
+  auctionType_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "AuctionType",
+    required: true
+  },
+  auction_title: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100
+  },
+  auction_status: {
+    type: String,
+    enum: ["upcoming", "active", "completed", "cancelled"],
+    default: "upcoming",
+    index: true
+  },
+  auction_start_time: {
+    type: Date,
+    required: true,
+    index: true
+  },
+  auction_end_time: {
+    type: Date,
+    required: true
+  },
+  settings: {
+    item_ids: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Item",
+      validate: {
+        validator: function(v) {
+          return this.auctionType_id?.type_name === "live" ? v.length > 0 : true;
+        },
+        message: "Live auctions require at least one item"
+      }
+    },
+    current_item_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Item"
+    },
+    min_bid_increment: {
+      type: Number,
+      default: 1
     }
   }
+}, { timestamps: true, strict: "throw" });
 
+// Pre-save validation
+auctionSchema.pre("save", async function(next) {
+  const auctionType = await AuctionType.findById(this.auctionType_id);
+  if (!auctionType) throw new Error("Invalid auction type");
+
+  // Time validation
   if (this.auction_start_time >= this.auction_end_time) {
-    return next(new Error("Start time must be before end time"));
+    throw new Error("End time must be after start time");
+  }
+
+  // Live auction specific checks
+  if (auctionType.type_name === "live") {
+    if (!this.settings.item_ids?.length) {
+      throw new Error("Live auctions require items");
+    }
+
+    // Verify all items exist and are available
+    const itemsCount = await mongoose.model("Item").countDocuments({
+      _id: { $in: this.settings.item_ids },
+      status: "available"
+    });
+    if (itemsCount !== this.settings.item_ids.length) {
+      throw new Error("One or more items are unavailable");
+    }
+
+    // Set first item as current if not set
+    if (!this.settings.current_item_id) {
+      this.settings.current_item_id = this.settings.item_ids[0];
+    }
   }
 
   next();
 });
 
-const Auction = mongoose.model("Auction", auctionSchema);
-
-export default Auction;
+export default mongoose.model("Auction", auctionSchema);

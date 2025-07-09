@@ -7,221 +7,176 @@ import Item from "../models/item.models.js";
 import Bid from "../models/bid.model.js";
 import mongoose from "mongoose";
 
-/**
- * @desc Get current item in live auction session
- */
-const getCurrentItem = asyncHandler(async (req, res) => {
-  const { session_id } = req.params;
+const moveToNextItemWithTransaction = async (auctionId, userId) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-  const session = await AuctionSession.findById(session_id);
-  if (!session) {
-    throw new apiError(404, "Session not found");
+  try {
+    const auction = await Auction.findOne({
+      _id: auctionId,
+      auctioneer_id: userId,
+      auction_status: "active",
+    }).session(session);
+
+    if (!auction) throw new apiError(404, "Auction not found or not active");
+
+    const currentItem = await Item.findById(
+      auction.settings.current_item_id
+    ).session(session);
+
+    // Finalize current item
+    if (currentItem) {
+      const winningBid = await Bid.findOne({ item_id: currentItem._id })
+        .sort({ amount: -1 })
+        .limit(1)
+        .session(session);
+
+      currentItem.status = winningBid ? "sold" : "unsold";
+      currentItem.winner_id = winningBid?.bidder_id;
+      await currentItem.save({ session });
+
+      if (winningBid) {
+        winningBid.is_winner = true;
+        await winningBid.save({ session });
+      }
+    }
+
+    // Get next available item
+    const nextItemId = await getNextAvailableItemId(
+      auction.settings.item_ids,
+      auction.settings.current_item_id
+    );
+
+    if (nextItemId) {
+      auction.settings.current_item_id = nextItemId;
+      await auction.save({ session });
+    } else {
+      auction.auction_status = "completed";
+      await auction.save({ session });
+
+      await AuctionSession.updateMany(
+        { auction_id: auction._id, status: "active" },
+        { status: "completed", actual_end_time: new Date() },
+        { session }
+      );
+    }
+
+    await session.commitTransaction();
+    return nextItemId;
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
+};
 
-  const auction = await Auction.findById(session.auction_id);
-  if (!auction) {
-    throw new apiError(404, "Auction not found");
-  }
-
-  // Get current item details
-  const currentItem = await Item.findById(auction.settings.current_item_id);
-  if (!currentItem) {
-    throw new apiError(404, "Current item not found");
-  }
-
-  // Get highest bid for current item
-  const highestBid = await Bid.findOne({ item_id: currentItem._id })
-    .sort({ amount: -1 })
-    .limit(1)
-    .populate("bidder_id", "username");
-
-  return res.status(200).json(
-    new APIResponse(
-      200,
-      {
-        currentItem,
-        highestBid,
-        nextItemId: getNextItemId(auction), // Helper function to get next item
-        biddingOpen:
-          session.status === "active" &&
-          auction.settings.current_item_id === currentItem._id,
-      },
-      "Current item retrieved successfully"
-    )
-  );
-});
-
-/**
- * @desc Place a bid on current item
- */
+// Atomic bid placement
 const placeBid = asyncHandler(async (req, res) => {
   const { session_id } = req.params;
-  const { amount } = req.body;
+  const { amount, item_id } = req.body;
 
   // Validate input
-  if (!amount || isNaN(amount)) {
-    throw new apiError(400, "Valid bid amount is required");
-  }
-
-  const session = await AuctionSession.findById(session_id);
-  if (!session || session.status !== "active") {
-    throw new apiError(400, "Session is not active");
-  }
-
-  const auction = await Auction.findById(session.auction_id);
-  if (!auction) {
-    throw new apiError(404, "Auction not found");
-  }
-
-  const currentItem = await Item.findById(auction.settings.current_item_id);
-  if (!currentItem) {
-    throw new apiError(404, "Current item not found");
-  }
-
-  // Check if user is a participant
-  const isParticipant = await AuctionParticipant.findOne({
-    session_id,
-    User_id: req.user._id,
-    status: "active",
-  });
-  if (!isParticipant) {
-    throw new apiError(403, "You must join the session to bid");
-  }
-
-  // Get current highest bid
-  const highestBid = await Bid.findOne({ item_id: currentItem._id })
-    .sort({ amount: -1 })
-    .limit(1);
-
-  // Validate bid amount
-  const minimumBid = highestBid
-    ? highestBid.amount + (currentItem.bid_increment || 1)
-    : currentItem.starting_bid;
-
-  if (amount < minimumBid) {
-    throw new apiError(400, `Bid must be at least ${minimumBid}`);
-  }
-
-  // Create new bid
-  const bid = new Bid({
-    auction_id: auction._id,
-    session_id,
-    item_id: currentItem._id,
-    bidder_id: req.user._id,
-    amount,
-  });
-
-  await bid.save();
-
-  // Update current price on item
-  currentItem.current_bid = amount;
-  await currentItem.save();
-
-  return res
-    .status(201)
-    .json(new APIResponse(201, { bid }, "Bid placed successfully"));
-});
-
-/**
- * @desc Move to next item in auction (auctioneer only)
- */
-const moveToNextItem = asyncHandler(async (req, res) => {
-  const { session_id } = req.params;
-
-  const session = await AuctionSession.findById(session_id);
-  if (!session) {
-    throw new apiError(404, "Session not found");
-  }
-
-  const auction = await Auction.findById(session.auction_id);
-  if (!auction) {
-    throw new apiError(404, "Auction not found");
-  }
-
-  // Verify auctioneer
-  if (!auction.auctioneer_id.equals(req.user._id)) {
-    throw new apiError(403, "Only the auctioneer can perform this action");
+  if (!amount || !item_id) {
+    throw new apiError(400, "Amount and item ID are required");
   }
 
   const dbSession = await mongoose.startSession();
   dbSession.startTransaction();
+
   try {
-    // 1. Determine winner for current item
-    const currentItemId = auction.settings.current_item_id;
-    const currentItem = await Item.findById(currentItemId).session(dbSession);
+    // 1. Validate session and item
+    const session = await AuctionSession.findOne({
+      _id: session_id,
+      status: "active",
+    }).session(dbSession);
 
-    if (currentItem) {
-      const winningBid = await Bid.findOne({ item_id: currentItemId })
-        .sort({ amount: -1 })
-        .limit(1)
-        .session(dbSession);
+    if (!session) throw new apiError(400, "Invalid or inactive session");
 
-      if (winningBid) {
-        winningBid.is_winner = true;
-        await winningBid.save({ session: dbSession });
+    const auction = await Auction.findOne({
+      _id: session.auction_id,
+      "settings.current_item_id": item_id,
+    }).session(dbSession);
 
-        currentItem.winner_id = winningBid.bidder_id;
-        currentItem.status = "sold";
-        await currentItem.save({ session: dbSession });
-      } else {
-        currentItem.status = "unsold";
-        await currentItem.save({ session: dbSession });
-      }
+    if (!auction) throw new apiError(400, "Item not currently being auctioned");
+
+    // 2. Validate participant
+    const isParticipant = await AuctionParticipant.exists({
+      session_id,
+      user_id: req.user._id,
+      status: "active",
+    }).session(dbSession);
+
+    if (!isParticipant) throw new apiError(403, "Join session to bid");
+
+    // 3. Get current item
+    const item = await Item.findById(item_id).session(dbSession);
+    if (!item) throw new apiError(404, "Item not found");
+
+    // 4. Atomic bid validation and placement
+    const minValidBid = await getMinimumValidBid(item_id, dbSession);
+    if (amount < minValidBid) {
+      throw new apiError(400, `Bid must be at least ${minValidBid}`);
     }
 
-    // 2. Move to next item
-    const nextItemId = getNextItemId(auction);
-    if (nextItemId) {
-      auction.settings.current_item_id = nextItemId;
-      await auction.save({ session: dbSession });
-    } else {
-      // No more items - end session
-      session.status = "completed";
-      session.actual_end_time = new Date();
-      await session.save({ session: dbSession });
+    const bid = await Bid.create(
+      [
+        {
+          auction_id: auction._id,
+          session_id,
+          item_id,
+          bidder_id: req.user._id,
+          amount,
+          timestamp: new Date(),
+        },
+      ],
+      { session: dbSession }
+    );
 
-      auction.auction_status = "completed";
-      await auction.save({ session: dbSession });
-    }
+    // 5. Update item's current price
+    await Item.findByIdAndUpdate(
+      item_id,
+      { current_bid: amount },
+      { session: dbSession }
+    );
 
     await dbSession.commitTransaction();
+
+    return res
+      .status(201)
+      .json(new APIResponse(201, { bid: bid[0] }, "Bid placed successfully"));
   } catch (error) {
     await dbSession.abortTransaction();
     throw error;
   } finally {
     dbSession.endSession();
   }
-
-  return res.status(200).json(
-    new APIResponse(
-      200,
-      {
-        currentItemId: auction.settings.current_item_id,
-        sessionStatus: session.status,
-      },
-      "Moved to next item successfully"
-    )
-  );
 });
 
-// Helper function to get next item ID
-function getNextItemId(auction) {
-  if (!auction.settings.item_ids || !auction.settings.current_item_id) {
-    return null;
+// Helper functions
+const getMinimumValidBid = async (itemId, session) => {
+  const highestBid = await Bid.findOne({ item_id: itemId })
+    .sort({ amount: -1 })
+    .limit(1)
+    .session(session || null);
+
+  const item = await Item.findById(itemId).session(session || null);
+  const increment = item?.bid_increment || 1;
+
+  return highestBid ? highestBid.amount + increment : item.starting_bid;
+};
+
+const getNextAvailableItemId = async (itemIds, currentItemId) => {
+  const currentIndex = itemIds.indexOf(currentItemId.toString());
+  if (currentIndex === -1 || currentIndex >= itemIds.length - 1) return null;
+
+  // Find next available item
+  for (let i = currentIndex + 1; i < itemIds.length; i++) {
+    const item = await Item.findById(itemIds[i]);
+    if (item?.status === "available") return item._id;
   }
 
-  const currentIndex = auction.settings.item_ids.indexOf(
-    auction.settings.current_item_id.toString()
-  );
+  return null;
+};
 
-  if (
-    currentIndex === -1 ||
-    currentIndex >= auction.settings.item_ids.length - 1
-  ) {
-    return null;
-  }
-
-  return auction.settings.item_ids[currentIndex + 1];
-}
-
-export { getCurrentItem, placeBid, moveToNextItem };
+export { getCurrentItem, placeBid, moveToNextItemWithTransaction };
