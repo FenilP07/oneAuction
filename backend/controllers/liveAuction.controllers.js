@@ -179,4 +179,4 @@ const getNextAvailableItemId = async (itemIds, currentItemId) => {
   return null;
 };
 
-export { getCurrentItem, placeBid, moveToNextItemWithTransaction };
+export { placeBid, moveToNextItemWithTransaction };
