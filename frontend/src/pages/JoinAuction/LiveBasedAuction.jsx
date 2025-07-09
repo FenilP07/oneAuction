@@ -61,7 +61,7 @@ const LiveBasedAuction = () => {
     return (
         <>
             <Navbar />
-            <div className="container-fluid p-5 bg-light">
+            <div className="container-fluid p-5 bgOne">
                 <div className="row g-4">
                     {/* LEFT COLUMN */}
                     <div className="col-lg-8">
