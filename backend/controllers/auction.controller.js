@@ -121,4 +121,40 @@ const createAuction = asyncHandler(async (req, res) => {
     );
 });
 
-export { createAuction };
+
+const getAuctionSummary = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+
+  const auction = await Auction.findById(auction_id).populate("auctioneer_id", "username email").lean();
+  if (!auction) throw new apiError(404, "AUCTION_NOT_FOUND", "Auction not found");
+
+  const items = await Item.find({ _id: { $in: auction.settings.item_ids || [] } }).lean();
+
+  const sessions = await AuctionSession.find({ auction_id }).lean();
+
+  const summary = await Promise.all(items.map(async (item) => {
+    const highestBid = await Bid.findOne({ item_id: item._id })
+      .sort({ amount: -1 })
+      .populate("bidder_id", "username email");
+
+    return {
+      item_id: item._id,
+      item_name: item.item_name,
+      starting_bid: item.starting_bid,
+      final_bid: highestBid ? highestBid.amount : null,
+      winner: highestBid ? highestBid.bidder_id : null,
+      status: item.status,
+    };
+  }));
+
+  res.status(200).json(
+    new APIResponse(200, {
+      auction,
+      sessions,
+      item_summaries: summary,
+    }, "Auction summary retrieved successfully")
+  );
+});
+
+
+export { createAuction, getAuctionSummary };

@@ -179,4 +179,30 @@ const getNextAvailableItemId = async (itemIds, currentItemId) => {
   return null;
 };
 
-export { placeBid, moveToNextItemWithTransaction };
+
+const getItemBidHistory = asyncHandler(async (req, res) => {
+  const { session_id, item_id } = req.params;
+
+  const session = await AuctionSession.findById(session_id);
+  if (!session) throw new apiError(404, "SESSION_NOT_FOUND", "Session not found");
+
+  const item = await Item.findById(item_id);
+  if (!item) throw new apiError(404, "ITEM_NOT_FOUND", "Item not found");
+
+  const bids = await Bid.find({
+    session_id,
+    item_id,
+  })
+    .sort({ amount: -1 })
+    .populate("bidder_id", "username email");
+
+  res.status(200).json(
+    new APIResponse(200, {
+      count: bids.length,
+      bids,
+    }, "Bid history retrieved successfully")
+  );
+});
+
+
+export { placeBid, moveToNextItemWithTransaction, getItemBidHistory };

@@ -255,6 +255,127 @@ const endAuctionSession = asyncHandler(async (req, res) => {
 });
 
 
+const getCurrentItem = asyncHandler(async (req, res) => {
+  const { session_id } = req.params;
+
+  const session = await AuctionSession.findById(session_id);
+  if (!session) {
+    throw new apiError(404, "SESSION_NOT_FOUND", "Session not found");
+  }
+
+  const auction = await Auction.findById(session.auction_id).lean();
+  if (!auction) {
+    throw new apiError(404, "AUCTION_NOT_FOUND", "Auction not found");
+  }
+
+  const currentItem = await Item.findById(auction.settings.current_item_id).lean();
+  if (!currentItem) {
+    throw new apiError(404, "ITEM_NOT_FOUND", "Current item not found");
+  }
+
+  // Get min valid bid for this item
+  const highestBid = await Bid.findOne({ item_id: currentItem._id })
+    .sort({ amount: -1 })
+    .limit(1);
+
+  const increment = currentItem.bid_increment || 1;
+  const minValidBid = highestBid ? highestBid.amount + increment : currentItem.starting_bid;
+
+  return res.status(200).json(
+    new APIResponse(200, {
+      currentItem,
+      current_bid: highestBid?.amount || 0,
+      min_valid_bid: minValidBid,
+    }, "Current item retrieved successfully")
+  );
+});
+
+
+const pauseAuctionSession = asyncHandler(async (req, res) => {
+  const { session_id } = req.params;
+
+  const session = await AuctionSession.findOne({
+    _id: session_id,
+    status: "active",
+  });
+
+  if (!session) {
+    throw new apiError(404, "INVALID_SESSION", "Active session not found");
+  }
+
+  const auction = await Auction.findOne({
+    _id: session.auction_id,
+    auctioneer_id: req.user._id,
+  });
+
+  if (!auction) {
+    throw new apiError(403, "FORBIDDEN", "You don't have permission to pause this session");
+  }
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    session.status = "paused";
+    await session.save({ session: dbSession });
+
+    auction.auction_status = "paused";
+    await auction.save({ session: dbSession });
+
+    await dbSession.commitTransaction();
+  } catch (error) {
+    await dbSession.abortTransaction();
+    throw error;
+  } finally {
+    dbSession.endSession();
+  }
+
+  res.status(200).json(new APIResponse(200, { session }, "Auction session paused successfully"));
+});
+
+
+const resumeAuctionSession = asyncHandler(async (req, res) => {
+  const { session_id } = req.params;
+
+  const session = await AuctionSession.findOne({
+    _id: session_id,
+    status: "paused",
+  });
+
+  if (!session) {
+    throw new apiError(404, "INVALID_SESSION", "Paused session not found");
+  }
+
+  const auction = await Auction.findOne({
+    _id: session.auction_id,
+    auctioneer_id: req.user._id,
+  });
+
+  if (!auction) {
+    throw new apiError(403, "FORBIDDEN", "You don't have permission to resume this session");
+  }
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    session.status = "active";
+    await session.save({ session: dbSession });
+
+    auction.auction_status = "active";
+    await auction.save({ session: dbSession });
+
+    await dbSession.commitTransaction();
+  } catch (error) {
+    await dbSession.abortTransaction();
+    throw error;
+  } finally {
+    dbSession.endSession();
+  }
+
+  res.status(200).json(new APIResponse(200, { session }, "Auction session resumed successfully"));
+});
+
 
 export {
   createAuctionSession,
@@ -263,4 +384,7 @@ export {
   endAuctionSession,
   getAuctionSession,
   getSessionParticipants,
+  getCurrentItem,
+  pauseAuctionSession,
+  resumeAuctionSession,
 };
