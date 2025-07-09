@@ -3,8 +3,8 @@ import { apiError } from "../utils/apiError.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import AuctionSession from "../models/auctionSession.models.js";
 import Auction from "../models/auction.models.js";
-import Item from "../models/item.models.js";
-import Bid from "../models/bid.model.js";
+import Item from "../models/items.models.js";
+import Bid from "../models/bid.models.js";
 import mongoose from "mongoose";
 
 const moveToNextItemWithTransaction = async (auctionId, userId) => {
