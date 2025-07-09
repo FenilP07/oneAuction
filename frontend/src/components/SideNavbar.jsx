@@ -15,7 +15,7 @@ const SideNavbar = () => {
       <nav className="side-menu">
         <div className="logo">
           <div className="logo-company">
-            <img src="/image/logo.png" height={70} width={70} alt="Logo" />
+            <img src="/images/logo.png" height={70} width={70} alt="Logo" />
           </div>
         </div>
 
@@ -26,11 +26,7 @@ const SideNavbar = () => {
             </NavLink>
           </li>
 
-          <li>
-            <NavLink to="/clients" className="nav-link">
-              <p className="icon"><FaUserFriends /></p> Clients
-            </NavLink>
-          </li>
+         
 
           <li>
             <NavLink to="/admin/items" className="nav-link">
@@ -66,6 +62,13 @@ const SideNavbar = () => {
               </ul>
             )}
           </li>
+
+            <li>
+            <NavLink to="/admin/auction" className="nav-link">
+              <p className="icon"><FaShoppingCart /></p> Auction
+            </NavLink>
+          </li> 
+
         </ul>
       </nav>
     </aside>
