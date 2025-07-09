@@ -108,6 +108,14 @@ function Navbar() {
 											Profile
 										</Link>
 									</li>
+
+									   {user?.role === 'admin' && (
+										<li>
+										<Link className="dropdown-item" to="/admin">
+											Admin
+										</Link>
+										</li>
+									)}
 									<li>
 										<hr className="dropdown-divider" />
 									</li>
