@@ -4,6 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import logger from "../utils/logger.js";
+import ItemImages from "../models/itemImages.models.js";
 
 /**
  * @desc Add a new item (only for logged-in auctioneers and active category)
@@ -42,6 +43,16 @@ const createItem = asyncHandler(async (req, res) => {
     status: "pending_approval",
     approval_reason: "create"
   });
+
+ if (req.files && req.files.length > 0) {
+    const images = req.files.map((file, index) => ({
+      item_id: item._id,
+      image_url: file.path, 
+      is_primary: index === 0,
+      order: index,
+    }));
+     await ItemImages.insertMany(images);
+  }
 
   logger.info("Item created successfully", { itemId: item._id });
 
@@ -133,7 +144,6 @@ export const rejectItem = asyncHandler(async (req, res) => {
 });
 
 
-export { createItem, updateItem };
 
 /**
  * @desc Get all available items for users with filters and pagination
