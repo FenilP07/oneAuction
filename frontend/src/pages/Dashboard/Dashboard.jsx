@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar.jsx";
+import AuctionModal from '../../components/AuctionModal';
 import {
   Card,
   Col,
@@ -326,12 +327,7 @@ const Dashboard = () => {
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <Card.Title>Auction Management</Card.Title>
-            <Button
-              variant="primary"
-              onClick={() => navigate("/auctions/create")}
-            >
-              Create New Auction
-            </Button>
+            <AuctionModal onAuctionCreate={handleAuctionCreate}/>
           </div>
           {loading ? (
             <div className="text-center py-5">
@@ -602,6 +598,9 @@ const Dashboard = () => {
     }
   };
 
+  const handleAuctionCreate = (data) => {
+		console.log('Auction created:', data);
+	};
   if (!user) {
     return (
       <div className="container mt-5">
