@@ -4,7 +4,14 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import logger from "../utils/logger.js";
+<<<<<<< HEAD
+import mongoose from "mongoose";
 import ItemImages from "../models/itemImages.models.js";
+
+
+=======
+import ItemImages from "../models/itemImages.models.js";
+>>>>>>> d9e28b3ce7554b56f1d401e1331189a22e71c247
 
 /**
  * @desc Add a new item (only for logged-in auctioneers and active category)
@@ -121,10 +128,44 @@ const updateItem = asyncHandler(async (req, res) => {
 
 
 //get item by id
+// export const getItemById = asyncHandler(async (req, res) => {
+//   const item = await Item.findById(req.params.id).populate("category_id auctioneer_id");
+//   if (!item) throw new apiError(404, "Item not found");
+//   return res.status(200).json(new APIResponse(200, { item }));
+// });
+
 export const getItemById = asyncHandler(async (req, res) => {
-  const item = await Item.findById(req.params.id).populate("category_id auctioneer_id");
-  if (!item) throw new apiError(404, "Item not found");
-  return res.status(200).json(new APIResponse(200, { item }));
+  // Validate ObjectId
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    logger.warn("Invalid item ID", { itemId: req.params.id });
+    throw new apiError(400, "Invalid item ID");
+  }
+
+  // Fetch item with populated category and auctioneer
+
+  const item = await Item.findById(req.params.id)
+  .populate("category_id", "name")              // Only fetch `name` from Category
+  .populate("auctioneer_id", "username")       // Only fetch `full_name` from User
+  .populate("approver_id", "username");        
+
+  if (!item) {
+    logger.warn("Item not found", { itemId: req.params.id });
+    throw new apiError(404, "Item not found");
+  }
+
+  // Fetch associated images, sorted by order
+  const images = await ItemImages.find({ item_id: item._id })
+    .select("image_url is_primary order createdAt updatedAt")
+    .sort({ order: 1 });
+
+  logger.info("Retrieved item with images", {
+    itemId: item._id,
+    imageCount: images.length,
+  });
+
+  return res.status(200).json(
+    new APIResponse(200, { item, images }, "Item and images fetched successfully")
+  );
 });
 
 export const approveItem = asyncHandler(async (req, res) => {
@@ -144,6 +185,10 @@ export const rejectItem = asyncHandler(async (req, res) => {
 });
 
 
+<<<<<<< HEAD
+export { createItem, updateItem };
+=======
+>>>>>>> d9e28b3ce7554b56f1d401e1331189a22e71c247
 
 /**
  * @desc Get all available items for users with filters and pagination
@@ -219,5 +264,5 @@ const getMyItems = asyncHandler(async (req, res) => {
 });
 
 
-export { createItem, updateItem, getAllItems, getMyItems };
+export {  getAllItems, getMyItems };
 
