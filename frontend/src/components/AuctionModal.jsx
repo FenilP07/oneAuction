@@ -27,7 +27,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
         setShowModal(false);
         setAuctionType(null);
         setSelectedItem(null);
-        setAuctionData({ startDate: '', startTime: '', timePeriod: '', agreement: false, items: [], sequence: [] });
+        setAuctionData({ startDate: '', startTime: '', agreement: false, items: [], sequence: [] });
     };
 
     const handleItemSelect = (item) => {
@@ -242,10 +242,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                 {auctionType === 'Time-Based' && (
                                                     <>
                                                         <div className="col-md-6">
+                                                            <label for="endDate" class="form-label">End Date:</label>
                                                             <input
                                                                 type="date"
                                                                 className="form-control"
-                                                                name="startDate"
+                                                                name="endDate"
                                                                 value={auctionData.startDate}
                                                                 onChange={handleInputChange}
                                                                 min={currentDate}
@@ -253,25 +254,14 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                             />
                                                         </div>
                                                         <div className="col-md-6">
+                                                            <label for="endTime" class="form-label">End Time:</label>
                                                             <input
                                                                 type="time"
                                                                 className="form-control"
-                                                                name="startTime"
+                                                                name="endTime"
                                                                 value={auctionData.startTime}
                                                                 onChange={handleInputChange}
                                                                 min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <input
-                                                                type="number"
-                                                                className="form-control"
-                                                                name="timePeriod"
-                                                                value={auctionData.timePeriod}
-                                                                onChange={handleInputChange}
-                                                                placeholder="Time Period (hours)"
-                                                                min="1"
                                                                 required
                                                             />
                                                         </div>
@@ -280,10 +270,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                 {auctionType === 'Live' && (
                                                     <>
                                                         <div className="col-md-6">
+                                                            <label for="startDate" class="form-label">Start Date:</label>
                                                             <input
                                                                 type="date"
                                                                 className="form-control"
                                                                 name="startDate"
+                                                                id="startDate"
                                                                 value={auctionData.startDate}
                                                                 onChange={handleInputChange}
                                                                 min={currentDate}
@@ -291,6 +283,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                             />
                                                         </div>
                                                         <div className="col-md-6">
+                                                            <label for="startTime" class="form-label">Start Time:</label>
                                                             <input
                                                                 type="time"
                                                                 className="form-control"
@@ -310,11 +303,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                                     type="checkbox"
                                                                     className="form-check-input"
                                                                     name="agreement"
+                                                                    id="liveBaseAgreement"
                                                                     checked={auctionData.agreement}
                                                                     onChange={handleInputChange}
                                                                     required
                                                                 />
-                                                                <label className="form-check-label">I agree to the terms</label>
+                                                                <label className="form-check-label" for="liveBaseAgreement">I agree to the terms</label>
                                                             </div>
                                                         </div>
                                                     </>
@@ -322,10 +316,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                 {auctionType === 'Sealed Bid' && (
                                                     <>
                                                         <div className="col-md-6">
+                                                            <label for="endDate" class="form-label">End Date:</label>
                                                             <input
                                                                 type="date"
                                                                 className="form-control"
-                                                                name="startDate"
+                                                                name="endDate"
                                                                 value={auctionData.startDate}
                                                                 onChange={handleInputChange}
                                                                 min={currentDate}
@@ -333,25 +328,14 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                                             />
                                                         </div>
                                                         <div className="col-md-6">
+                                                            <label for="endTime" class="form-label">End Time:</label>
                                                             <input
                                                                 type="time"
                                                                 className="form-control"
-                                                                name="startTime"
+                                                                name="endTime"
                                                                 value={auctionData.startTime}
                                                                 onChange={handleInputChange}
                                                                 min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <input
-                                                                type="number"
-                                                                className="form-control"
-                                                                name="timePeriod"
-                                                                value={auctionData.timePeriod}
-                                                                onChange={handleInputChange}
-                                                                placeholder="Time Period (hours)"
-                                                                min="1"
                                                                 required
                                                             />
                                                         </div>

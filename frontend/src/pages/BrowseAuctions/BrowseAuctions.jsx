@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar.jsx';
+import Footer from '../../components/Footer.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUsers, faArrowTrendUp, faGavel } from '@fortawesome/free-solid-svg-icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -12,10 +13,10 @@ const BrowseAuctions = () => {
     const [timerTexts, setTimerTexts] = useState({});
 
     const auctions = [
-        { id: 1, title: 'Vintage Watch', type: 'Live-Based', price: 250, endDate: '2025-07-05', img: 'https://picsum.photos/300/200?random=17' },
-        { id: 2, title: 'Antique Vase', type: 'Time-Based', price: 150, endDate: '2025-07-06', img: 'https://picsum.photos/300/200?random=18' },
-        { id: 3, title: 'Signed Painting', type: 'Sealed-Based', price: 500, endDate: '2025-07-07', img: 'https://picsum.photos/300/200?random=19' },
-        { id: 4, title: 'Classic Guitar', type: 'Live-Based', price: 300, endDate: '2025-07-08', img: 'https://picsum.photos/300/200?random=20' },
+        { id: 1, title: 'Vintage Watch', type: 'Live-Based', price: 250, endDate: '2025-07-20', img: 'https://picsum.photos/300/200?random=17' },
+        { id: 2, title: 'Antique Vase', type: 'Time-Based', price: 150, endDate: '2025-07-20', img: 'https://picsum.photos/300/200?random=18' },
+        { id: 3, title: 'Signed Painting', type: 'Seal-Based', price: 500, endDate: '2025-07-22', img: 'https://picsum.photos/300/200?random=19' },
+        { id: 4, title: 'Classic Guitar', type: 'Live-Based', price: 300, endDate: '2025-07-23', img: 'https://picsum.photos/300/200?random=20' },
     ];
 
     const filteredAuctions = auctions.filter(auction => 
@@ -56,7 +57,7 @@ const BrowseAuctions = () => {
 			<Navbar />
             <h2 className="text-center fw-bold textSecond my-5"><FontAwesomeIcon className='me-2' icon={faGavel} />Browse Auctions</h2>
             
-            <section className="container-fluid bgOne">
+            <section className="container-fluid bgSecond">
                 {/* Filter Section */}
                 <div className="row g-3 mb-4 py-4 px-5">
                     <div className="col-12 col-md-6">
@@ -77,7 +78,7 @@ const BrowseAuctions = () => {
                             <option value="all">All Types</option>
                             <option value="Live-Based">Live-Based</option>
                             <option value="Time-Based">Time-Based</option>
-                            <option value="Sealed-Based">Sealed-Based</option>
+                            <option value="Seal-Based">Seal-Based</option>
                         </select>
                     </div>
                     <div className="col-12 col-md-3">
@@ -115,13 +116,14 @@ const BrowseAuctions = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <Link to={`/auction/${auction.id}`} className="btn btn-success mt-3">Bid Now</Link>
+                                    <Link to={`/joinAuction/${auction.type.toLowerCase().replace('-', '')}/${auction.id}`} state={{ auction }} className="btn btn-success mt-3">Bid Now</Link>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
             </section>
+            <Footer />
         </>
     );
 };

@@ -15,6 +15,7 @@ import adminItemRoutes from "./routes/admin.routes.js";
 import auctionTypeRoutes from "./routes/auctionTypes.routes.js";
 import auctionRoutes from "./routes/auction.routes.js";
 import auctionSessionRoutes from "./routes/auctionSession.routes.js"
+import liveAuctionRoutes from "./routes/liveAuction.routes.js";
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/api/admin/item/", adminItemRoutes);
 app.use("/api/auctionType/", auctionTypeRoutes);
 app.use("/api/auction/",auctionRoutes)
 app.use("/api/auctionSession/", auctionSessionRoutes);
+app.use("/api/liveAuction/", liveAuctionRoutes);
 
 app.use(errorHandler);
 

@@ -17,9 +17,8 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "cloudinary": "^2.6.1",
+    "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
-    "corn": "^0.0.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
@@ -30,6 +29,7 @@
     "mongoose-aggregate-paginate-v2": "^1.1.4",
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
+    "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^4.2.0",
     "nodemailer": "^7.0.3",
     "winston": "^3.17.0"

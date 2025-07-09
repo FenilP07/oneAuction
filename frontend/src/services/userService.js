@@ -85,3 +85,17 @@ export const getUserById = async (userId) => {
     throw new Error(message);
   }
 };
+
+/**
+ * Updates a user's profile with the backend.
+ */
+export const updateUserProfile = async (userId, formData) => {
+  try {
+    const response = await apiClient.patch(`/user/${userId}`, formData);
+    return response.data.data;
+  } catch (error) {
+    const message = error.message || 'Failed to update user profile.';
+    console.error('Update user profile error:', message);
+    throw new Error(message);
+  }
+};

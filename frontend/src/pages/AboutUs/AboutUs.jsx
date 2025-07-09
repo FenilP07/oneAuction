@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import Navbar from '../../components/Navbar.jsx';
+import Footer from '../../components/Footer.jsx';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGavel } from '@fortawesome/free-solid-svg-icons';
 
@@ -13,7 +14,7 @@ const AboutUs = () => {
 				<h2 className='textSecond fw-bold text-center py-4'><FontAwesomeIcon className='me-2' icon={faGavel} />About Us</h2>
 				<div className="row px-5">
 					{/* Website Information */}
-					<div className="col-12 col-md-6">
+					<div className="col-12 col-md-6 mb-3 mb-md-0">
 						<div className='border border-3 border-secondary rounded-4 p-4'>
 							<div className="text-center mb-3">
 								<img src="/images/AuctionLogo.png" className="img-fluid" alt="OneAuction" />
@@ -80,6 +81,7 @@ const AboutUs = () => {
 					</div>
 				</div>
 			</section>
+			<Footer />
 		</>
 	);
 };
