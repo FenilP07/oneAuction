@@ -4,8 +4,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import logger from "../utils/logger.js";
+import mongoose from "mongoose";
 import ItemImages from "../models/itemImages.models.js";
-
 /**
  * @desc Add a new item (only for logged-in auctioneers and active category)
  * @route POST /api/item/create
@@ -39,19 +39,19 @@ const createItem = asyncHandler(async (req, res) => {
     description,
     starting_bid,
     category_id,
-    auctioneer_id: req.user._id,  // from authenticatedMiddleware
+    auctioneer_id: req.user._id, // from authenticatedMiddleware
     status: "pending_approval",
-    approval_reason: "create"
+    approval_reason: "create",
   });
 
- if (req.files && req.files.length > 0) {
+  if (req.files && req.files.length > 0) {
     const images = req.files.map((file, index) => ({
       item_id: item._id,
-      image_url: file.path, 
+      image_url: file.path,
       is_primary: index === 0,
       order: index,
     }));
-     await ItemImages.insertMany(images);
+    await ItemImages.insertMany(images);
   }
 
   logger.info("Item created successfully", { itemId: item._id });
@@ -78,7 +78,9 @@ const updateItem = asyncHandler(async (req, res) => {
   }
 
   if (!item.auctioneer_id.equals(req.user._id)) {
-    logger.warn("Update failed: Unauthorized auctioneer", { userId: req.user._id });
+    logger.warn("Update failed: Unauthorized auctioneer", {
+      userId: req.user._id,
+    });
     throw new apiError(403, "You are not authorized to update this item");
   }
 
@@ -119,31 +121,45 @@ const updateItem = asyncHandler(async (req, res) => {
 });
 
 
+const getItemById = asyncHandler(async (req, res) => {
+  // Validate ObjectId
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    logger.warn("Invalid item ID", { itemId: req.params.id });
+    throw new apiError(400, "Invalid item ID");
+  }
 
-//get item by id
-export const getItemById = asyncHandler(async (req, res) => {
-  const item = await Item.findById(req.params.id).populate("category_id auctioneer_id");
-  if (!item) throw new apiError(404, "Item not found");
-  return res.status(200).json(new APIResponse(200, { item }));
-});
+  // Fetch item with populated category and auctioneer
 
-export const approveItem = asyncHandler(async (req, res) => {
-  const item = await Item.findById(req.params.id);
-  if (!item) throw new apiError(404, "Item not found");
-  item.status = "available";
-  await item.save();
-  return res.status(200).json(new APIResponse(200, { item }, "Item approved"));
-});
+  const item = await Item.findById(req.params.id)
+    .populate("category_id", "name") // Only fetch `name` from Category
+    .populate("auctioneer_id", "username") // Only fetch `full_name` from User
+    .populate("approver_id", "username");
 
-export const rejectItem = asyncHandler(async (req, res) => {
-  const item = await Item.findById(req.params.id);
-  if (!item) throw new apiError(404, "Item not found");
-  item.status = "rejected";
-  await item.save();
-  return res.status(200).json(new APIResponse(200, { item }, "Item rejected"));
-});
+  if (!item) {
+    logger.warn("Item not found", { itemId: req.params.id });
+    throw new apiError(404, "Item not found");
+  }
 
+  // Fetch associated images, sorted by order
+  const images = await ItemImages.find({ item_id: item._id })
+    .select("image_url is_primary order createdAt updatedAt")
+    .sort({ order: 1 });
 
+  logger.info("Retrieved item with images", {
+    itemId: item._id,
+    imageCount: images.length,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new APIResponse(
+        200,
+        { item, images },
+        "Item and images fetched successfully"
+      )
+    );
+}); 
 
 /**
  * @desc Get all available items for users with filters and pagination
@@ -159,11 +175,19 @@ const getAllItems = asyncHandler(async (req, res) => {
   if (category_id) filters.category_id = category_id;
 
   if (name) {
-    filters.name = { $regex: name, $options: "i" };  // case-insensitive partial match
+    filters.name = { $regex: name, $options: "i" }; // case-insensitive partial match
   }
 
-  if (minBid) filters.starting_bid = { ...filters.starting_bid, $gte: parseFloat(minBid) };
-  if (maxBid) filters.starting_bid = { ...filters.starting_bid, $lte: parseFloat(maxBid) };
+  if (minBid)
+    filters.starting_bid = {
+      ...filters.starting_bid,
+      $gte: parseFloat(minBid),
+    };
+  if (maxBid)
+    filters.starting_bid = {
+      ...filters.starting_bid,
+      $lte: parseFloat(maxBid),
+    };
 
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -177,13 +201,16 @@ const getAllItems = asyncHandler(async (req, res) => {
   logger.info(`Retrieved ${items.length} items with filters`);
 
   return res.status(200).json(
-    new APIResponse(200, {
-      totalItems,
-      currentPage: parseInt(page),
-      totalPages: Math.ceil(totalItems / limit),
-      items,
-    },
-    "Items fetched successfully")
+    new APIResponse(
+      200,
+      {
+        totalItems,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalItems / limit),
+        items,
+      },
+      "Items fetched successfully"
+    )
   );
 });
 
@@ -206,18 +233,22 @@ const getMyItems = asyncHandler(async (req, res) => {
     .limit(parseInt(limit))
     .sort({ createdAt: -1 });
 
-  logger.info(`Retrieved ${items.length} items for user`, { userId: req.user._id });
+  logger.info(`Retrieved ${items.length} items for user`, {
+    userId: req.user._id,
+  });
 
   return res.status(200).json(
-    new APIResponse(200, {
-      totalItems,
-      currentPage: parseInt(page),
-      totalPages: Math.ceil(totalItems / limit),
-      items,
-    }, "User's items fetched successfully")
+    new APIResponse(
+      200,
+      {
+        totalItems,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalItems / limit),
+        items,
+      },
+      "User's items fetched successfully"
+    )
   );
 });
 
-
-export { createItem, updateItem, getAllItems, getMyItems };
-
+export { createItem, updateItem, getItemById, getAllItems, getMyItems };

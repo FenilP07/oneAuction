@@ -117,8 +117,6 @@ const BrowseAuctions = () => {
                                         </div>
                                     </div>
                                     <Link to={`/joinAuction/${auction.type.toLowerCase().replace('-', '')}/${auction.id}`} state={{ auction }} className="btn btn-success mt-3">Bid Now</Link>
-                                    <Link to={`/joinAuction/${auction.id}`} state={{ auction }} className="btn btn-success mt-3">Bid Now1</Link>
-                                    <Link to={`/auction/${auction.id}`} className="btn btn-success mt-3">Bid Now</Link>
                                 </div>
                             </div>
                         </div>

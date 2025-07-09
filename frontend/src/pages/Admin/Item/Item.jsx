@@ -8,6 +8,9 @@ import { AiOutlineShoppingCart } from "react-icons/ai";
 import { FcApproval } from "react-icons/fc";
 import { CgSandClock, CgClose } from "react-icons/cg";
 import useAuthStore from "../../../store/authStore";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+
+
 
 
 
@@ -20,6 +23,14 @@ const Item = () => {
   });
 
   const { accessToken } = useAuthStore();
+
+  const pieData = [
+  { name: "Approved", value: stats.approved },
+  { name: "Pending", value: stats.pending },
+  { name: "Rejected", value: stats.rejected },
+];
+
+const COLORS = ["#00C49F", "#FFBB28", "#FF4C4C"];
 
 
   const [items, setItems] = useState([]);
@@ -111,7 +122,31 @@ useEffect(() => {
           </div>
 
           <div className="chart box1">
-            <p>Bar Chart (Coming Soon)</p>
+           <div className="chart box1">
+  <p>Item Status Distribution</p>
+  <ResponsiveContainer width="100%" height={300}>
+    <PieChart>
+      <Pie
+        data={pieData}
+        cx="50%"
+        cy="50%"
+        labelLine={false}
+        label={({ name, percent }) =>
+          `${name}: ${(percent * 100).toFixed(0)}%`
+        }
+        outerRadius={100}
+        dataKey="value"
+      >
+        {pieData.map((entry, index) => (
+          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+        ))}
+      </Pie>
+      <Tooltip formatter={(value) => [`${value} items`, "Count"]} />
+      <Legend />
+    </PieChart>
+  </ResponsiveContainer>
+</div>
+
           </div>
         </div>
       </div>

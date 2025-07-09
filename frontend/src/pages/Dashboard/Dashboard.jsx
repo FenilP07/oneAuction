@@ -41,6 +41,7 @@ import { getMyAuctions, getMyBids } from "../../services/auctionService";
 import { getMyItems } from "../../services/itemService";
 import { createAuction } from "../../services/auctionService.js";
 import { createItem } from "../../services/itemService";
+import AuctionModal from "../../components/AuctionModal.jsx";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -168,6 +169,10 @@ const Dashboard = () => {
       console.error("Failed to create item:", error);
     }
   };
+
+  const handleAuctionCreate = (data) => {
+		console.log('Auction created:',data);
+	}
 
   const renderAuctioneerDashboard = () => (
     <>
@@ -327,7 +332,9 @@ const Dashboard = () => {
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <Card.Title>Auction Management</Card.Title>
+
             <AuctionModal onAuctionCreate={handleAuctionCreate}/>
+
           </div>
           {loading ? (
             <div className="text-center py-5">
