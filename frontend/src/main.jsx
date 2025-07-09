@@ -36,7 +36,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="itemListingPage" element={<ItemListingPage />} />
           <Route path="home" element={<Home />} />
           <Route path="addcategory" element={<AddCategory />} />
-
           <Route path="admin/categorieslist" element={<CategoryList />} />
           <Route path="admin/items" element={<Item />} />
           <Route path="/admin/items/:id" element={<ItemDetail />} />

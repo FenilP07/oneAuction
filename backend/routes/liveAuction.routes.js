@@ -2,7 +2,7 @@ import Router from "express";
 import {
   moveToNextItemWithTransaction,
   placeBid,
-} from "../controllers/liveAuction.controllers";
+} from "../controllers/liveAuction.controllers.js";
 
 const router = Router();
 

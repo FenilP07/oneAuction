@@ -635,7 +635,7 @@ const Dashboard = () => {
             variant={activeTab === "auctioneer" ? "primary" : "outline-primary"}
             onClick={() =>
               navigate(
-                activeTab === "auctioneer" ? "/items/create" : "/auctions"
+                activeTab === "auctioneer" ? "/itemListingPage" : "/auctions"
               )
             }
           >
