@@ -8,7 +8,7 @@ import ResetPassword from "./pages/Resetpassword/ResetPassword.jsx";
 import Dashboard from "./pages/Dashboard/Dashboard.jsx";
 import "./index.css";
 import RegistrationForm from "./pages/Register/RegistrationForm";
-import User from "./pages/User/user.jsx";
+import User from "./pages/User/User.jsx";
 import AddCategory from "./pages/Admin/Categories/AddCategory.jsx";
 import ItemListingPage from "./pages/ItemListingPage/ItemListingPage.jsx";
 import Home from "./pages/Home/Home.jsx";
@@ -20,6 +20,9 @@ import ItemDetail from "./pages/Admin/Item/ItemDetail.jsx";
 
 import AboutUs from "./pages/AboutUs/AboutUs.jsx";
 import BrowseAuctions from  "./pages/BrowseAuctions/BrowseAuctions.jsx";
+import TimeBasedAuction from  "./pages/JoinAuction/TimeBasedAuction.jsx";
+import SealedBasedAuction from  "./pages/JoinAuction/SealedBasedAuction.jsx";
+import LiveBasedAuction from  "./pages/JoinAuction/LiveBasedAuction.jsx";
 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -36,7 +39,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="itemListingPage" element={<ItemListingPage />} />
           <Route path="home" element={<Home />} />
           <Route path="addcategory" element={<AddCategory />} />
-
           <Route path="admin/categorieslist" element={<CategoryList />} />
           <Route path="admin/items" element={<Item />} />
           <Route path="/admin/items/:id" element={<ItemDetail />} />
@@ -44,6 +46,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aboutUs" element={<AboutUs />} />
           <Route path="browseAuctions" element={<BrowseAuctions />} />
+          <Route path="joinAuction/timebased/:id" element={<TimeBasedAuction />} />
+          <Route path="joinAuction/sealbased/:id" element={<SealedBasedAuction />} />
+          <Route path="joinAuction/livebased/:id" element={<LiveBasedAuction />} />
         </Route>
       </Routes>
     </BrowserRouter>
