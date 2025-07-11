@@ -136,8 +136,10 @@ const getSessionParticipants = async (sessionId) => {
     throw new Error(message);
   }
 };
-const getMyBids = async () => {}
-const getMyAuctions = async () => {}
+const getMyBids = async () => {};
+const getMyAuctions = async () => {
+  
+};
 export {
   createAuction,
   createAuctionSession,
@@ -147,5 +149,6 @@ export {
   getAuctionSession,
   getSessionParticipants,
   getMyBids,
-  getMyAuctions
+  getMyAuctions,
+  
 };

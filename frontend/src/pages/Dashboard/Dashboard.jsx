@@ -41,7 +41,6 @@ import { getMyAuctions, getMyBids } from "../../services/auctionService";
 import { getMyItems } from "../../services/itemService";
 import { createAuction } from "../../services/auctionService.js";
 import { createItem } from "../../services/itemService";
-import AuctionModal from "../../components/AuctionModal.jsx";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -605,9 +604,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleAuctionCreate = (data) => {
-		console.log('Auction created:', data);
-	};
   if (!user) {
     return (
       <div className="container mt-5">

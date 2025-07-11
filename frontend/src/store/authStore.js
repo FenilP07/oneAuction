@@ -4,7 +4,7 @@ import { setAuthToken } from '../utils/apiClient.js';
 
 const useAuthStore = create(
   persist(
-    (set) => ({
+    (set,get) => ({
       user: null,
       accessToken: null,
       setAuth: (user, accessToken) => {
@@ -14,6 +14,24 @@ const useAuthStore = create(
       clearAuth: () => {
         setAuthToken(null);
         set({ user: null, accessToken: null });
+      },
+      isAdmin:()=>{
+        const {user} = get();
+        return user?.role === 'admin';
+
+      },
+      isUser: () => {
+        const { user } = get();
+        return user?.role === 'user';
+
+      },
+      getUserRole:()=>{
+         const { user } = get();
+        return user?.role || null;
+      },
+       isAuthenticated: () => {
+        const { user, accessToken } = get();
+        return !!(user && accessToken);
       },
     }),
     {

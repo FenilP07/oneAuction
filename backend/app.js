@@ -58,7 +58,7 @@ app.use("/api/item/", itemRoutes);
 app.use("/api/admin/item/", adminItemRoutes);
 
 
-app.use("/api/auctionType/", auctionTypeRoutes);
+app.use("/api/auction/auctionType/", auctionTypeRoutes);
 app.use("/api/auction/",auctionRoutes)
 app.use("/api/auctionSession/", auctionSessionRoutes);
 app.use("/api/liveAuction/", liveAuctionRoutes);

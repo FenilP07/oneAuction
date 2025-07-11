@@ -168,6 +168,16 @@ const handleItemApproval = async (itemId, action) => {
     throw new Error(message);
   }
 };
+ const getMyAvailableItems = async (params = {}) => {
+  try {
+    const response = await apiClient.get("/item/my-available-items", { params });
+    return response.data?.data || { items: [], totalItems: 0, currentPage: 1, totalPages: 1 };
+  } catch (error) {
+    const message = error.response?.data?.message || "Failed to fetch available items.";
+    console.error("Get available items error:", message);
+    throw new Error(message);
+  }
+};
 
 export {
   createItem,
@@ -179,4 +189,5 @@ export {
   getMyItems,
   getPendingApprovalItems,
   handleItemApproval,
+  getMyAvailableItems
 };

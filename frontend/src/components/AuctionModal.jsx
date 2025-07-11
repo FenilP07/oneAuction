@@ -1,392 +1,482 @@
-import React, { useState, useEffect } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import React, { useState, useEffect } from "react";
+import "bootstrap/dist/css/bootstrap.min.css";
+import getAllAuctionTypes from "../services/auctioTypeService"; // Note: Typo in 'auctioTypeService'
+import { getMyAvailableItems } from "../services/itemService";
+import { createAuction } from "../services/auctionService";
 
 const AuctionModal = ({ onAuctionCreate }) => {
-    const [showModal, setShowModal] = useState(false);
-    const [auctionType, setAuctionType] = useState(null);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [auctionData, setAuctionData] = useState({
-        startDate: '',
-        startTime: '',
-        timePeriod: '',
-        agreement: false,
-        items: [],
-        sequence: [],
+  const [showModal, setShowModal] = useState(false);
+  const [auctionTypes, setAuctionTypes] = useState([]);
+  const [selectedAuctionType, setSelectedAuctionType] = useState(null);
+  const [itemsData, setItemsData] = useState({
+    items: [],
+    totalItems: 0,
+    currentPage: 1,
+    totalPages: 1,
+  });
+  const [auctionData, setAuctionData] = useState({
+    startDate: "",
+    startTime: "",
+    timePeriod: "",
+    agreement: false,
+    items: [],
+    sequence: [],
+    auction_title: "",
+    auction_description: "",
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [error, setError] = useState(null);
+  const itemsPerPage = 10; // Matches backend limit
+
+  // Get current date and time
+  const now = new Date();
+  const currentDate = now.toISOString().split("T")[0];
+  const currentTime = now
+    .toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+    .slice(0, 5);
+
+  const handleAuctionCreate = (data) => {
+    onAuctionCreate(data);
+    resetModal();
+  };
+
+  const resetModal = () => {
+    setShowModal(false);
+    setSelectedAuctionType(null);
+    setItemsData({ items: [], totalItems: 0, currentPage: 1, totalPages: 1 });
+    setAuctionData({
+      startDate: currentDate,
+      startTime: currentTime,
+      timePeriod: "",
+      agreement: false,
+      items: [],
+      sequence: [],
+      auction_title: "",
+      auction_description: "",
     });
-    const [items] = useState([
-        { id: 1, itemName: 'Gold Watch', photo: 'https://picsum.photos/200/200?random=1', baseBid: '400.00', description: 'Luxury gold watch with leather strap' },
-        { id: 2, itemName: 'Oil Painting', photo: 'https://picsum.photos/200/200?random=2', baseBid: '300.00', description: 'Classic landscape oil painting' },
-        { id: 3, itemName: 'Vintage Coin', photo: 'https://picsum.photos/200/200?random=3', baseBid: '150.00', description: 'Rare 19th-century coin collection' },
-    ]);
+    setIsSubmitting(false);
+    setError(null);
+  };
 
-    const currentDate = new Date().toISOString().split('T')[0]; // 2025-07-02
-    const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }).slice(0, 5); // 18:18
+  const handleItemSelect = (item) => {
+    if (selectedAuctionType.type_name === "live") {
+      setAuctionData((prev) => {
+        const isSelected = prev.items.includes(item._id);
+        const updatedItems = isSelected
+          ? prev.items.filter((id) => id !== item._id)
+          : [...prev.items, item._id];
+        const updatedSequence = isSelected
+          ? prev.sequence.filter((_, i) => prev.items[i] !== item._id)
+          : [...prev.sequence, prev.sequence.length + 1];
+        return { ...prev, items: updatedItems, sequence: updatedSequence };
+      });
+    } else {
+      setAuctionData((prev) => ({ ...prev, items: [item._id] }));
+    }
+  };
 
-    const handleAuctionCreate = (data) => {
-        onAuctionCreate(data);
-        setShowModal(false);
-        setAuctionType(null);
-        setSelectedItem(null);
-        setAuctionData({ startDate: '', startTime: '', agreement: false, items: [], sequence: [] });
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setAuctionData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    setError(null); // Clear error on input change
+  };
+
+  const validateForm = () => {
+    if (!auctionData.auction_title) return "Auction title is required.";
+    if (!auctionData.startDate) return "Start date is required.";
+    if (!auctionData.startTime) return "Start time is required.";
+    if (!auctionData.timePeriod || auctionData.timePeriod <= 0) return "Valid duration is required.";
+    if (!auctionData.agreement) return "You must agree to the terms.";
+    if (auctionData.items.length === 0) return "At least one item must be selected.";
+    return null;
+  };
+
+  const submitAuction = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const { startDate, startTime, timePeriod, items, auction_title, auction_description } = auctionData;
+    const auction_start_time = new Date(`${startDate}T${startTime}`);
+    const auction_end_time = new Date(auction_start_time.getTime() + timePeriod * 60000);
+
+    const payload = {
+      auctionType_id: selectedAuctionType._id,
+      auction_title,
+      auction_description,
+      auction_start_time,
+      auction_end_time,
+      settings: selectedAuctionType.type_name === "live" ? { item_ids: items } : { item_id: items[0] },
     };
 
-    const handleItemSelect = (item) => {
-        setAuctionData((prev) => {
-            const itemIndex = prev.items.indexOf(item.id);
-            if (itemIndex > -1) {
-                const newItems = prev.items.filter((id) => id !== item.id);
-                const newSequence = prev.sequence.filter((_, idx) => prev.items[idx] !== item.id);
-                return { ...prev, items: newItems, sequence: newSequence };
-            } else {
-                return { ...prev, items: [...prev.items, item.id], sequence: [...prev.sequence, prev.sequence.length + 1] };
-            }
-        });
-    };
+    try {
+      const created = await createAuction(payload);
+      handleAuctionCreate(created);
+    } catch (err) {
+      setError(err.message || "Auction creation failed.");
+      setIsSubmitting(false);
+    }
+  };
 
-    const handleInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setAuctionData((prev) => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value,
-        }));
-    };
+  const fetchItems = async (page = 1) => {
+    setLoadingItems(true);
+    setError(null);
+    try {
+      const data = await getMyAvailableItems({ page, limit: itemsPerPage });
+      setItemsData(data);
+    } catch (err) {
+      setError(err.message || "Failed to fetch items.");
+    } finally {
+      setLoadingItems(false);
+    }
+  };
 
-    const handleSequenceChange = (index, value) => {
-        const newSequence = [...auctionData.sequence];
-        newSequence[index] = parseInt(value) || 1;
-        setAuctionData((prev) => ({ ...prev, sequence: newSequence }));
-    };
+  useEffect(() => {
+    if (showModal) {
+      const modal = document.querySelector(".modal");
+      modal.classList.add("show");
+      modal.style.display = "block";
+      document.body.classList.add("modal-open");
 
-    // Sort items based on sequence
-    const getOrderedItems = () => {
-        if (auctionData.items.length === 0) return [];
-        const itemMap = auctionData.items.map((id, idx) => ({ id, seq: auctionData.sequence[idx] || (idx + 1) }));
-        return itemMap
-            .sort((a, b) => a.seq - b.seq)
-            .map(sorted => items.find(item => item.id === sorted.id));
-    };
+      const backdrop = document.createElement("div");
+      backdrop.className = "modal-backdrop fade show";
+      document.body.appendChild(backdrop);
 
-    // Validate sequence numbers
-    const validateSequence = () => {
-        const numItems = auctionData.items.length;
-        if (numItems === 0) return true;
-        const sequenceSet = new Set(auctionData.sequence);
-        const expectedSequence = Array.from({ length: numItems }, (_, i) => i + 1);
-        return sequenceSet.size === numItems && auctionData.sequence.every(seq => expectedSequence.includes(seq));
-    };
+      getAllAuctionTypes()
+        .then(setAuctionTypes)
+        .catch((err) => setError("Failed to fetch auction types."));
 
-    useEffect(() => {
-        if (showModal) {
-            const modal = document.querySelector('.modal');
-            modal.classList.add('show');
-            modal.style.display = 'block';
-            document.body.classList.add('modal-open');
-            const backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop fade show';
-            document.body.appendChild(backdrop);
-            return () => {
-                modal.classList.remove('show');
-                modal.style.display = 'none';
-                document.body.classList.remove('modal-open');
-                document.body.removeChild(backdrop);
-            };
-        }
-    }, [showModal]);
+      return () => {
+        modal.classList.remove("show");
+        modal.style.display = "none";
+        document.body.classList.remove("modal-open");
+        if (document.body.contains(backdrop)) document.body.removeChild(backdrop);
+      };
+    }
+  }, [showModal]);
 
-    return (
-        <>
-            <div className="d-flex justify-content-end mb-3">
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                    Create Your Auction
-                </button>
+  useEffect(() => {
+    if (selectedAuctionType) {
+      fetchItems(1); // Fetch first page when auction type is selected
+    }
+  }, [selectedAuctionType]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= itemsData.totalPages) {
+      fetchItems(newPage);
+    }
+  };
+
+  return (
+    <>
+      <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+        <i className="bi bi-plus me-1"></i>
+        Create Auction
+      </button>
+
+      <div className="modal fade" tabIndex="-1" role="dialog" aria-labelledby="auctionModalLabel" aria-hidden={!showModal}>
+        <div className="modal-dialog modal-lg" role="document">
+          <div className="modal-content">
+            <div className="modal-header bg-primary text-white py-2">
+              <h5 className="modal-title fs-6" id="auctionModalLabel">
+                <i className="bi bi-hammer me-1"></i>
+                Create Auction
+              </h5>
+              <button
+                type="button"
+                className="btn-close btn-close-white m-0"
+                onClick={resetModal}
+                disabled={isSubmitting}
+                aria-label="Close"
+              ></button>
             </div>
-            <div className="modal fade" tabIndex="-1" role="dialog">
-                <div className="modal-dialog modal-lg" role="document">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title">Create Auction</h5>
-                            <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
-                        </div>
-                        <div className="modal-body">
-                            {!auctionType ? (
-                                <div className="text-center">
-                                    <p>Select Auction Type</p>
-                                    <div className="d-flex justify-content-center gap-3">
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Time-Based')}
-                                        >
-                                            Time-Based Auction
-                                        </button>
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Live')}
-                                        >
-                                            Live Auction
-                                        </button>
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Sealed Bid')}
-                                        >
-                                            Sealed Bid Auction
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : !selectedItem ? (
-                                <>
-                                <div className="row row-cols-1 row-cols-md-3 g-4">
-                                    {auctionType === 'Live' ? (
-                                        items.map((item) => (
-                                            <div className="col" key={item.id}>
-                                                <div className="card h-100">
-                                                    <img src={item.photo} className="card-img-top" alt={item.itemName} style={{ height: '200px', objectFit: 'cover' }} />
-                                                    <div className="card-body">
-                                                        <h5 className="card-title">{item.itemName}</h5>
-                                                        <p className="card-text">Base Price: ${item.baseBid}</p>
-                                                        <button
-                                                            className={`btn ${auctionData.items.includes(item.id) ? 'btn-success' : 'btn-primary'}`}
-                                                            onClick={() => handleItemSelect(item)}
-                                                        >
-                                                            {auctionData.items.includes(item.id) ? 'Selected' : 'Select'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        items.map((item) => (
-                                            <div className="col" key={item.id}>
-                                                <div className="card h-100">
-                                                    <img src={item.photo} className="card-img-top" alt={item.itemName} style={{ height: '200px', objectFit: 'cover' }} />
-                                                    <div className="card-body">
-                                                        <h5 className="card-title">{item.itemName}</h5>
-                                                        <p className="card-text">Base Price: ${item.baseBid}</p>
-                                                        <button className="btn btn-primary" onClick={() => setSelectedItem(item)}>
-                                                            Select
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                    
-                                </div>
-                                <div className='row justify-content-end'>
-                                    <div className="text-end mt-3">
-                                        <button
-                                            className="btn btn-primary"
-                                            onClick={() => {
-                                                if (auctionType === 'Live' && auctionData.items.length >= 3) {
-                                                    const selectedItems = auctionData.items.map(id => items.find(i => i.id === id));
-                                                    setSelectedItem({ id: 'multiple', itemNames: selectedItems.map(i => i.itemName).join(', '), items: selectedItems });
-                                                } else if (auctionType !== 'Live' && selectedItem) {
-                                                    setSelectedItem(selectedItem);
-                                                }
-                                            }}
-                                            disabled={auctionType === 'Live' ? auctionData.items.length < 3 : !selectedItem}
-                                        >
-                                            {auctionType === 'Live' ? 'Next' : 'Select'}
-                                        </button>
-                                    </div>
-                                </div>
-                                </>
-                            ) : (
-                                <div className="card">
-                                    <div className="card-body">
-                                        <h4 className="card-title">Create {auctionType} Auction</h4>
-                                        <form onSubmit={(e) => {
-                                            e.preventDefault();
-                                            if (auctionType === 'Live' && !validateSequence()) {
-                                                alert('Please ensure each item has a unique sequence number from 1 to ' + auctionData.items.length + '.');
-                                                return;
-                                            }
-                                            handleAuctionCreate(auctionData);
-                                        }}>
-                                            <div className="row g-3">
-                                                {auctionType === 'Live' && selectedItem.id === 'multiple' && (
-                                                    <div className="col-12">
-                                                        {getOrderedItems().map((item, index) => (
-                                                            <div key={item.id} className="d-flex align-items-center mb-2">
-                                                                <img src={item.photo} alt={item.itemName} style={{ width: '100px', height: '100px', objectFit: 'cover', marginRight: '10px' }} />
-                                                                <span>{item.itemName} - ${item.baseBid} (Seq: </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="form-control form-control-sm"
-                                                                    style={{ width: '60px', display: 'inline-block', margin: '0 5px' }}
-                                                                    value={auctionData.sequence[index] || (index + 1)}
-                                                                    onChange={(e) => handleSequenceChange(index, e.target.value)}
-                                                                    min="1"
-                                                                    max={auctionData.items.length}
-                                                                />
-                                                                <span>)</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {auctionType !== 'Live' && selectedItem && (
-                                                    <>
-                                                        <div className="col-12">
-                                                            <img src={selectedItem.photo} className="img-fluid mb-2" alt={selectedItem.itemName} style={{ maxHeight: '200px', objectFit: 'cover' }} />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Item Name:</strong> {selectedItem.itemName}</p>
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Description:</strong> {selectedItem.description}</p>
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Base Price:</strong> ${selectedItem.baseBid}</p>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Time-Based' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="endDate" class="form-label">End Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="endDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="endTime" class="form-label">End Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="endTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Live' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="startDate" class="form-label">Start Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="startDate"
-                                                                id="startDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="startTime" class="form-label">Start Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="startTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p className="text-danger">
-                                                                Caution: This is a live auction. If only one person bids, it will close automatically 1 minute after the last bid, and you are obligated to sell.
-                                                            </p>
-                                                            <div className="form-check">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="form-check-input"
-                                                                    name="agreement"
-                                                                    id="liveBaseAgreement"
-                                                                    checked={auctionData.agreement}
-                                                                    onChange={handleInputChange}
-                                                                    required
-                                                                />
-                                                                <label className="form-check-label" for="liveBaseAgreement">I agree to the terms</label>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Sealed Bid' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="endDate" class="form-label">End Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="endDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="endTime" class="form-label">End Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="endTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <div className="form-check">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="form-check-input"
-                                                                    name="agreement"
-                                                                    checked={auctionData.agreement}
-                                                                    onChange={handleInputChange}
-                                                                    required
-                                                                />
-                                                                <label className="form-check-label">
-                                                                    I agree that users can only see base price and bid blindly; the highest bidder wins.
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                <div className="col-12 text-end">
-                                                    <button type="submit" className="btn btn-success" disabled={auctionType !== 'Time-Based' && !auctionData.agreement}>
-                                                        Create Auction
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="modal-footer">
-                            {selectedItem && (
-                                <button type="button" className="btn btn-secondary" onClick={() => setSelectedItem(null)}>
-                                    Back to Items
-                                </button>
-                            )}
-                            {auctionType && !selectedItem && (
-                                <button type="button" className="btn btn-secondary" onClick={() => setAuctionType(null)}>
-                                    Back to Types
-                                </button>
-                            )}
-                            <button type="button" className="btn btn-danger" onClick={() => setShowModal(false)}>
-                                Close
-                            </button>
-                        </div>
-                    </div>
+
+            <div className="modal-body p-3">
+              {error && (
+                <div className="alert alert-danger py-2 px-3 mb-2" role="alert">
+                  {error}
                 </div>
+              )}
+
+              {!selectedAuctionType ? (
+                <div className="text-center py-2">
+                  <h6 className="mb-3">Select Auction Type</h6>
+                  <div className="d-flex justify-content-center gap-2">
+                    {auctionTypes.length === 0 ? (
+                      <div className="alert alert-info py-2 px-3">No auction types available</div>
+                    ) : (
+                      auctionTypes.map((type) => (
+                        <button
+                          key={type._id}
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={() => setSelectedAuctionType(type)}
+                        >
+                          {type.type_name === "live" ? (
+                            <i className="bi bi-lightning me-1"></i>
+                          ) : (
+                            <i className="bi bi-clock me-1"></i>
+                          )}
+                          {type.type_name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="d-flex align-items-center mb-2">
+                    <button
+                      className="btn btn-sm btn-outline-secondary me-2"
+                      onClick={() => setSelectedAuctionType(null)}
+                    >
+                      <i className="bi bi-arrow-left"></i>
+                    </button>
+                    <h6 className="m-0 text-capitalize">{selectedAuctionType.type_name} Auction</h6>
+                  </div>
+
+                  <div className="row g-2">
+                    <div className="col-md-8">
+                      <h6 className="mb-2 fs-6">Select Items</h6>
+                      {loadingItems ? (
+                        <div className="text-center py-2">
+                          <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading...</span>
+                          </div>
+                        </div>
+                      ) : itemsData.items.length === 0 ? (
+                        <div className="alert alert-info py-2 px-3 mb-2">No items available</div>
+                      ) : (
+                        <>
+                          <div className="row row-cols-2 row-cols-md-3 g-2">
+                            {itemsData.items.map((item) => (
+                              <div className="col" key={item._id}>
+                                <div
+                                  className={`card h-100 ${auctionData.items.includes(item._id) ? "border-success" : ""}`}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => handleItemSelect(item)}
+                                >
+                                  <div className="card-img-top overflow-hidden" style={{ height: "100px" }}>
+                                    <img
+                                      src={
+                                        item.images?.find((img) => img.is_primary)?.image_url ||
+                                        item.images?.[0]?.image_url ||
+                                        "https://via.placeholder.com/150x100?text=No+Image"
+                                      }
+                                      className="w-100 h-100 object-fit-cover"
+                                      alt={item.name}
+                                    />
+                                  </div>
+                                  <div className="card-body p-2">
+                                    <h6 className="card-title mb-0 fs-6 text-truncate">{item.name}</h6>
+                                  </div>
+                                  <div className="card-footer p-1 bg-transparent">
+                                    <button
+                                      className={`btn btn-sm w-100 ${
+                                        auctionData.items.includes(item._id) ? "btn-success" : "btn-outline-primary"
+                                      }`}
+                                    >
+                                      {auctionData.items.includes(item._id) ? "✓" : "Select"}
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {itemsData.totalPages > 1 && (
+                            <nav aria-label="Items pagination" className="mt-3">
+                              <ul className="pagination pagination-sm justify-content-center">
+                                <li className={`page-item ${itemsData.currentPage === 1 ? "disabled" : ""}`}>
+                                  <button
+                                    className="page-link"
+                                    onClick={() => handlePageChange(itemsData.currentPage - 1)}
+                                  >
+                                    Previous
+                                  </button>
+                                </li>
+                                {[...Array(itemsData.totalPages).keys()].map((page) => (
+                                  <li
+                                    key={page + 1}
+                                    className={`page-item ${itemsData.currentPage === page + 1 ? "active" : ""}`}
+                                  >
+                                    <button className="page-link" onClick={() => handlePageChange(page + 1)}>
+                                      {page + 1}
+                                    </button>
+                                  </li>
+                                ))}
+                                <li
+                                  className={`page-item ${
+                                    itemsData.currentPage === itemsData.totalPages ? "disabled" : ""
+                                  }`}
+                                >
+                                  <button
+                                    className="page-link"
+                                    onClick={() => handlePageChange(itemsData.currentPage + 1)}
+                                  >
+                                    Next
+                                  </button>
+                                </li>
+                              </ul>
+                            </nav>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    <div className="col-md-4">
+                      <div className="card">
+                        <div className="card-header p-2 bg-light">
+                          <h6 className="m-0 fs-6">Auction Details</h6>
+                        </div>
+                        <div className="card-body p-2">
+                          <div className="mb-2">
+                            <label className="form-label mb-0 fs-6" htmlFor="auction_title">
+                              Title*
+                            </label>
+                            <input
+                              type="text"
+                              id="auction_title"
+                              name="auction_title"
+                              value={auctionData.auction_title}
+                              onChange={handleInputChange}
+                              className="form-control form-control-sm"
+                              required
+                              aria-describedby="auction_title_help"
+                            />
+                            <div id="auction_title_help" className="form-text">
+                              Enter a concise title for the auction.
+                            </div>
+                          </div>
+
+                          <div className="mb-2">
+                            <label className="form-label mb-0 fs-6" htmlFor="auction_description">
+                              Description
+                            </label>
+                            <textarea
+                              id="auction_description"
+                              name="auction_description"
+                              value={auctionData.auction_description}
+                              onChange={handleInputChange}
+                              className="form-control form-control-sm"
+                              rows="2"
+                              aria-describedby="auction_description_help"
+                            />
+                            <div id="auction_description_help" className="form-text">
+                              Provide details about the auction (optional).
+                            </div>
+                          </div>
+
+                          <div className="mb-2">
+                            <label className="form-label mb-0 fs-6" htmlFor="startDate">
+                              Start Date*
+                            </label>
+                            <input
+                              type="date"
+                              id="startDate"
+                              name="startDate"
+                              value={auctionData.startDate || currentDate}
+                              min={currentDate}
+                              onChange={handleInputChange}
+                              className="form-control form-control-sm"
+                              required
+                            />
+                          </div>
+
+                          <div className="mb-2">
+                            <label className="form-label mb-0 fs-6" htmlFor="startTime">
+                              Start Time*
+                            </label>
+                            <input
+                              type="time"
+                              id="startTime"
+                              name="startTime"
+                              value={auctionData.startTime || currentTime}
+                              min={auctionData.startDate === currentDate ? currentTime : "00:00"}
+                              onChange={handleInputChange}
+                              className="form-control form-control-sm"
+                              required
+                            />
+                          </div>
+
+                          <div className="mb-2">
+                            <label className="form-label mb-0 fs-6" htmlFor="timePeriod">
+                              Duration (min)*
+                            </label>
+                            <input
+                              type="number"
+                              id="timePeriod"
+                              name="timePeriod"
+                              value={auctionData.timePeriod}
+                              onChange={handleInputChange}
+                              className="form-control form-control-sm"
+                              min="1"
+                              required
+                              aria-describedby="timePeriod_help"
+                            />
+                            <div id="timePeriod_help" className="form-text">
+                              Duration of the auction in minutes.
+                            </div>
+                          </div>
+
+                          <div className="form-check mb-2">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id="agreementCheck"
+                              checked={auctionData.agreement}
+                              onChange={(e) => setAuctionData({ ...auctionData, agreement: e.target.checked })}
+                              required
+                            />
+                            <label className="form-check-label small" htmlFor="agreementCheck">
+                              I agree to the auction terms and conditions
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-        </>
-    );
+
+            <div className="modal-footer p-2">
+              <button
+                className="btn btn-sm btn-outline-danger"
+                onClick={resetModal}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </button>
+              {selectedAuctionType && auctionData.items.length > 0 && (
+                <button
+                  className="btn btn-sm btn-success"
+                  onClick={submitAuction}
+                  disabled={isSubmitting || !auctionData.agreement}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                      Creating
+                    </>
+                  ) : (
+                    "Create Auction"
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 };
 
 export default AuctionModal;

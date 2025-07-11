@@ -120,8 +120,14 @@ const updateItem = asyncHandler(async (req, res) => {
     .json(new APIResponse(200, { item }, "Item updated and pending approval"));
 });
 
+//get item by id
+// export const getItemById = asyncHandler(async (req, res) => {
+//   const item = await Item.findById(req.params.id).populate("category_id auctioneer_id");
+//   if (!item) throw new apiError(404, "Item not found");
+//   return res.status(200).json(new APIResponse(200, { item }));
+// });
 
-const getItemById = asyncHandler(async (req, res) => {
+export const getItemById = asyncHandler(async (req, res) => {
   // Validate ObjectId
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     logger.warn("Invalid item ID", { itemId: req.params.id });
@@ -159,7 +165,23 @@ const getItemById = asyncHandler(async (req, res) => {
         "Item and images fetched successfully"
       )
     );
-}); 
+});
+
+export const approveItem = asyncHandler(async (req, res) => {
+  const item = await Item.findById(req.params.id);
+  if (!item) throw new apiError(404, "Item not found");
+  item.status = "available";
+  await item.save();
+  return res.status(200).json(new APIResponse(200, { item }, "Item approved"));
+});
+
+export const rejectItem = asyncHandler(async (req, res) => {
+  const item = await Item.findById(req.params.id);
+  if (!item) throw new apiError(404, "Item not found");
+  item.status = "rejected";
+  await item.save();
+  return res.status(200).json(new APIResponse(200, { item }, "Item rejected"));
+});
 
 /**
  * @desc Get all available items for users with filters and pagination
@@ -250,5 +272,44 @@ const getMyItems = asyncHandler(async (req, res) => {
     )
   );
 });
+/**
+ * @desc Get all available items created by the logged-in user
+ * @route GET /api/item/my-available-items
+ */
+const getMyAvailableItems = asyncHandler(async (req, res) => {
+  logger.info("Fetching available items for logged-in user", {
+    userId: req.user._id,
+  });
 
-export { createItem, updateItem, getItemById, getAllItems, getMyItems };
+  const { page = 1, limit = 10 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const filters = { auctioneer_id: req.user._id, status: "available" };
+
+  const totalItems = await Item.countDocuments(filters);
+
+  const items = await Item.find(filters)
+    .populate("category_id", "name")
+    .skip(skip)
+    .limit(parseInt(limit))
+    .sort({ createdAt: -1 });
+
+  logger.info(`Retrieved ${items.length} available items for user`, {
+    userId: req.user._id,
+  });
+
+  return res.status(200).json(
+    new APIResponse(
+      200,
+      {
+        totalItems,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalItems / limit),
+        items,
+      },
+      "User's available items fetched successfully"
+    )
+  );
+});
+
+export { createItem, updateItem, getAllItems, getMyItems, getMyAvailableItems };
