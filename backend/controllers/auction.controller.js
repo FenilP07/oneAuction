@@ -1,10 +1,16 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
-import Item from "../models/items.models.js";
 import { APIResponse } from "../utils/apiResponse.js";
 import Auction from "../models/auction.models.js";
 import AuctionTypes from "../models/auctionTypes.models.js";
+import Item from "../models/items.models.js";
+import Bid from "../models/bid.models.js";
+import User from "../models/users.models.js";
 import mongoose from "mongoose";
+import upload from "../utils/cloudinary.js";
+import { redisClient } from "../app.js";
+import crypto from "crypto";
+
 const createAuction = asyncHandler(async (req, res) => {
   const {
     auctionType_id,
@@ -12,91 +18,70 @@ const createAuction = asyncHandler(async (req, res) => {
     auction_description,
     auction_start_time,
     auction_end_time,
+    is_invite_only,
     settings,
   } = req.body;
 
-  if (
-    !auctionType_id ||
-    !auction_title ||
-    !auction_start_time ||
-    !auction_end_time
-  ) {
+  if (!auctionType_id || !auction_title || !auction_start_time || !auction_end_time) {
     throw new apiError(400, "Missing required fields");
   }
+
   const auctionType = await AuctionTypes.findById(auctionType_id).lean();
-  if (!auctionType) {
-    throw new apiError(404, "Auction type not found");
-  }
-  // Validate dates
+  if (!auctionType) throw new apiError(404, "Auction type not found");
+
   const startTime = new Date(auction_start_time);
   const endTime = new Date(auction_end_time);
   if (isNaN(startTime) || isNaN(endTime)) {
-    return res.status(400).json({
-      error: { code: "INVALID_DATE", message: "Invalid date format" },
-    });
+    throw new apiError(400, "Invalid date format");
   }
   if (startTime >= endTime) {
-    return res.status(400).json({
-      error: {
-        code: "INVALID_DATE_RANGE",
-        message: "Start time must be before end time",
-      },
-    });
+    throw new apiError(400, "Start time must be before end time");
   }
 
-  const sanitizedSettings = {};
+  const sanitizedSettings = {
+    reserve_price: settings?.reserve_price || 0,
+    min_bid_increment: settings?.min_bid_increment || 1,
+  };
+
   if (auctionType.type_name === "live") {
-    if (
-      !settings?.item_ids ||
-      !Array.isArray(settings.item_ids) ||
-      settings.item_ids.length === 0
-    ) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_ITEMS",
-          message: "At least one item ID is required for live auctions",
-        },
-      });
+    if (!settings?.item_ids?.length || settings.item_ids.length < 3) {
+      throw new apiError(400, "Live auctions require at least three items");
     }
     const items = await Item.find({
-      _id: { $in: settings.item_ids.map(id =>new mongoose.Types.ObjectId(id)) },
-  status: "available",
+      _id: { $in: settings.item_ids.map(id => new mongoose.Types.ObjectId(id)) },
+      status: "available",
     }).lean();
     if (items.length !== settings.item_ids.length) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_ITEMS",
-          message: "One or more item IDs are invalid or unavailable",
-        },
-      });
+      throw new apiError(400, "Invalid or unavailable items");
     }
     sanitizedSettings.item_ids = settings.item_ids;
     sanitizedSettings.current_item_id = settings.item_ids[0];
-  } else if (
-    ["sealed_bid", "single_timed_item"].includes(auctionType.type_name)
-  ) {
-    if (!settings?.item_id) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_ITEM",
-          message:
-            "Item ID is required for sealed bid or single timed item auctions",
-        },
-      });
+  } else if (auctionType.type_name === "sealed_bid") {
+    if (!settings?.item_id || settings.item_ids?.length > 1) {
+      throw new apiError(400, "Sealed bid auctions require exactly one item");
     }
     const item = await Item.findOne({
-     _id: new mongoose.Types.ObjectId(settings.item_id),
-  status: "available",
+      _id: new mongoose.Types.ObjectId(settings.item_id),
+      status: "available",
     }).lean();
     if (!item) {
-      return res.status(400).json({
-        error: {
-          code: "INVALID_ITEM",
-          message: "Invalid or unavailable item ID",
-        },
-      });
+      throw new apiError(400, "Invalid or unavailable item");
     }
-    sanitizedSettings.item_id = settings.item_id;
+    sanitizedSettings.item_ids = [settings.item_id];
+    sanitizedSettings.sealed_bid_deadline = settings.sealed_bid_deadline || endTime;
+  } else if (auctionType.type_name === "single_timed_item") {
+    if (!settings?.item_id || settings.item_ids?.length > 1) {
+      throw new apiError(400, "Single timed item auctions require exactly one item");
+    }
+    const item = await Item.findOne({
+      _id: new mongoose.Types.ObjectId(settings.item_id),
+      status: "available",
+    }).lean();
+    if (!item) {
+      throw new apiError(400, "Invalid or unavailable item");
+    }
+    sanitizedSettings.item_ids = [settings.item_id];
+    sanitizedSettings.auto_extend_duration = settings.auto_extend_duration || 0;
   }
 
   const newAuction = new Auction({
@@ -106,55 +91,496 @@ const createAuction = asyncHandler(async (req, res) => {
     auction_description,
     auction_start_time: startTime,
     auction_end_time: endTime,
+    is_invite_only,
+    banner_image: req.file?.path,
     settings: sanitizedSettings,
   });
 
   await newAuction.save();
-  return res
-    .status(201)
-    .json(
-      new APIResponse(
-        201,
-        { auction: newAuction },
-        "Auction created successfully"
-      )
-    );
+  const session = await mongoose.model("AuctionSession").findOne({ auction_id: newAuction._id }).lean();
+  await redisClient.del("auctions:all"); // Invalidate cache
+  return res.status(201).json(new APIResponse(201, { auction: newAuction, session }, "Auction and session created successfully"));
 });
 
+const getAllAuctions = asyncHandler(async (req, res) => {
+  const cacheKey = `auctions:all:${JSON.stringify(req.query)}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
+  const auctions = await Auction.find({ deletedAt: null })
+    .populate("auctionType_id")
+    .populate("auctioneer_id", "username")
+    .lean();
+  const response = new APIResponse(200, { auctions }, "Auctions retrieved successfully");
+  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+  return res.status(200).json(response);
+});
+
+const getAuctionById = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+  
+  if (!auction_id) {
+    throw new apiError(400, "Auction ID is required");
+  }
+
+  const cacheKey = `auction:${auction_id}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
+  const auction = await Auction.findOne({
+    _id: auction_id,
+    deletedAt: null
+  })
+    .populate("auctionType_id")
+    .populate("auctioneer_id", "username email")
+    .lean();
+
+  if (!auction) {
+    throw new apiError(404, "Auction not found");
+  }
+
+  // Get items for this auction
+  const items = await Item.find({
+    _id: { $in: auction.settings.item_ids }
+  }).lean();
+
+  // Get current bids for each item (only for non-sealed auctions)
+  let itemsWithBids = items;
+  if (auction.auctionType_id.type_name !== "sealed_bid") {
+    itemsWithBids = await Promise.all(
+      items.map(async (item) => {
+        const highestBid = await Bid.findOne({
+          auction_id,
+          item_id: item._id
+        })
+          .sort({ amount: -1 })
+          .populate("bidder_id", "username")
+          .lean();
+
+        return {
+          ...item,
+          current_bid: highestBid?.amount || item.starting_bid,
+          highest_bidder: highestBid?.bidder_id?.username || null,
+          bid_count: await Bid.countDocuments({ auction_id, item_id: item._id })
+        };
+      })
+    );
+  }
+
+  const response = new APIResponse(200, { 
+    auction: {
+      ...auction,
+      items: itemsWithBids
+    }
+  }, "Auction retrieved successfully");
+  
+  await redisClient.setEx(cacheKey, 1800, JSON.stringify(response)); // Cache for 30 minutes
+  return res.status(200).json(response);
+});
 
 const getAuctionSummary = asyncHandler(async (req, res) => {
   const { auction_id } = req.params;
+  
+  if (!auction_id) {
+    throw new apiError(400, "Auction ID is required");
+  }
 
-  const auction = await Auction.findById(auction_id).populate("auctioneer_id", "username email").lean();
-  if (!auction) throw new apiError(404, "AUCTION_NOT_FOUND", "Auction not found");
+  const cacheKey = `auction:summary:${auction_id}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
 
-  const items = await Item.find({ _id: { $in: auction.settings.item_ids || [] } }).lean();
+  const auction = await Auction.findOne({
+    _id: auction_id,
+    deletedAt: null
+  })
+    .populate("auctionType_id", "type_name")
+    .populate("auctioneer_id", "username")
+    .lean();
 
-  const sessions = await AuctionSession.find({ auction_id }).lean();
+  if (!auction) {
+    throw new apiError(404, "Auction not found");
+  }
 
-  const summary = await Promise.all(items.map(async (item) => {
-    const highestBid = await Bid.findOne({ item_id: item._id })
-      .sort({ amount: -1 })
-      .populate("bidder_id", "username email");
+  // Get basic statistics
+  const totalBids = await Bid.countDocuments({ auction_id });
+  const uniqueBidders = await Bid.distinct("bidder_id", { auction_id });
+  const totalItems = auction.settings.item_ids?.length || 0;
 
-    return {
-      item_id: item._id,
-      item_name: item.item_name,
-      starting_bid: item.starting_bid,
-      final_bid: highestBid ? highestBid.amount : null,
-      winner: highestBid ? highestBid.bidder_id : null,
-      status: item.status,
-    };
-  }));
+  // Calculate total value and sold items
+  const items = await Item.find({
+    _id: { $in: auction.settings.item_ids }
+  }).lean();
 
-  res.status(200).json(
-    new APIResponse(200, {
-      auction,
-      sessions,
-      item_summaries: summary,
-    }, "Auction summary retrieved successfully")
-  );
+  const soldItems = items.filter(item => item.status === "sold");
+  const totalValue = soldItems.reduce((sum, item) => sum + (item.final_price || 0), 0);
+
+  // Get recent activity (last 10 bids)
+  const recentBids = await Bid.find({ auction_id })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .populate("bidder_id", "username")
+    .populate("item_id", "item_name")
+    .lean();
+
+  const summary = {
+    auction_id: auction._id,
+    auction_title: auction.auction_title,
+    auction_type: auction.auctionType_id.type_name,
+    auctioneer: auction.auctioneer_id.username,
+    status: auction.auction_status,
+    start_time: auction.auction_start_time,
+    end_time: auction.auction_end_time,
+    statistics: {
+      total_items: totalItems,
+      sold_items: soldItems.length,
+      total_bids: totalBids,
+      unique_bidders: uniqueBidders.length,
+      total_value: totalValue
+    },
+    recent_activity: recentBids.map(bid => ({
+      bidder: bid.bidder_id?.username || "Anonymous",
+      item: bid.item_id?.item_name || "Unknown",
+      amount: bid.amount,
+      timestamp: bid.createdAt
+    }))
+  };
+
+  const response = new APIResponse(200, { summary }, "Auction summary retrieved successfully");
+  await redisClient.setEx(cacheKey, 900, JSON.stringify(response)); // Cache for 15 minutes
+  return res.status(200).json(response);
 });
 
+const getAuctionPreview = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+  
+  if (!auction_id) {
+    throw new apiError(400, "Auction ID is required");
+  }
 
-export { createAuction, getAuctionSummary };
+  const cacheKey = `auction:preview:${auction_id}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
+  const auction = await Auction.findOne({
+    _id: auction_id,
+    deletedAt: null
+  })
+    .populate("auctionType_id", "type_name")
+    .populate("auctioneer_id", "username")
+    .select("auction_title auction_description banner_image auction_start_time auction_end_time auction_status is_invite_only")
+    .lean();
+
+  if (!auction) {
+    throw new apiError(404, "Auction not found");
+  }
+
+  // Get a preview of items (first 3 items with basic info)
+  const previewItems = await Item.find({
+    _id: { $in: auction.settings?.item_ids?.slice(0, 3) || [] }
+  })
+    .select("item_name item_description images starting_bid current_bid")
+    .lean();
+
+  // Get basic stats
+  const totalItems = auction.settings?.item_ids?.length || 0;
+  const totalBids = await Bid.countDocuments({ auction_id });
+
+  const preview = {
+    auction_id: auction._id,
+    auction_title: auction.auction_title,
+    auction_description: auction.auction_description,
+    banner_image: auction.banner_image,
+    auction_type: auction.auctionType_id.type_name,
+    auctioneer: auction.auctioneer_id.username,
+    status: auction.auction_status,
+    start_time: auction.auction_start_time,
+    end_time: auction.auction_end_time,
+    is_invite_only: auction.is_invite_only,
+    stats: {
+      total_items: totalItems,
+      total_bids: totalBids
+    },
+    preview_items: previewItems,
+    has_more_items: totalItems > 3
+  };
+
+  const response = new APIResponse(200, { preview }, "Auction preview retrieved successfully");
+  await redisClient.setEx(cacheKey, 1800, JSON.stringify(response)); // Cache for 30 minutes
+  return res.status(200).json(response);
+});
+
+const getAuctionLeaderboard = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+  const cacheKey = `leaderboard:${auction_id}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
+  const auction = await Auction.findOne({
+    _id: auction_id,
+    auction_status: "completed",
+  }).lean();
+
+  if (!auction) {
+    throw new apiError(404, "Auction not found or not completed");
+  }
+
+  const items = await Item.find({
+    _id: { $in: auction.settings.item_ids },
+  }).lean();
+
+  const leaderboard = await Promise.all(
+    items.map(async (item) => {
+      const highestBid = await Bid.findOne({
+        auction_id,
+        item_id: item._id,
+        is_winner: true,
+      }).lean();
+
+      const winner = highestBid
+        ? await User.findById(highestBid.bidder_id).select("username").lean()
+        : null;
+
+      return {
+        item_id: item._id,
+        item_name: item.item_name,
+        status: item.status,
+        final_bid: highestBid ? highestBid.amount : null,
+        winner: winner ? winner.username : "No winner",
+      };
+    })
+  );
+
+  const response = new APIResponse(200, { leaderboard }, "Leaderboard retrieved successfully");
+  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+  return res.status(200).json(response);
+});
+
+const placeSealedBid = asyncHandler(async (req, res) => {
+  const { auction_id, item_id, amount, invite_code } = req.body;
+
+  if (!auction_id || !item_id || !amount) {
+    throw new apiError(400, "Auction ID, item ID, and amount are required");
+  }
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    const auction = await Auction.findOne({
+      _id: auction_id,
+      auction_status: "active",
+      "settings.item_ids": item_id,
+    }).session(dbSession);
+
+    if (!auction) {
+      throw new apiError(404, "Auction or item not found");
+    }
+
+    if (auction.is_invite_only && invite_code !== auction.invite_code) {
+      throw new apiError(403, "Invalid invite code");
+    }
+
+    if (new Date() > auction.settings.sealed_bid_deadline) {
+      throw new apiError(400, "Sealed bid deadline has passed");
+    }
+
+    const bid = await Bid.create(
+      [{
+        auction_id,
+        item_id,
+        bidder_id: req.user._id,
+        amount,
+      }],
+      { session: dbSession }
+    );
+
+    await Auction.findByIdAndUpdate(
+      auction_id,
+      { $inc: { "settings.bid_count": 1, "settings.unique_bidders": 1 } },
+      { session: dbSession }
+    );
+
+    await dbSession.commitTransaction();
+    return res.status(201).json(new APIResponse(201, { bid: bid[0] }, "Sealed bid placed successfully"));
+  } catch (error) {
+    await dbSession.abortTransaction();
+    throw error;
+  } finally {
+    dbSession.endSession();
+  }
+});
+
+const revealSealedBids = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    const auction = await Auction.findOne({
+      _id: auction_id,
+      auction_status: "active",
+    }).session(dbSession);
+
+    if (!auction) {
+      throw new apiError(404, "Sealed bid auction not found");
+    }
+
+    const auctionType = await AuctionTypes.findOne({ type_name: "sealed_bid" }).session(dbSession);
+    if (!auctionType || !auction.auctionType_id.equals(auctionType._id)) {
+      throw new apiError(400, "This is not a sealed bid auction");
+    }
+
+    if (new Date() < auction.settings.sealed_bid_deadline) {
+      throw new apiError(400, "Cannot reveal bids before deadline");
+    }
+
+    const bids = await Bid.find({ auction_id, item_id: auction.settings.item_ids[0] })
+      .select("encrypted_amount bidder_id")
+      .session(dbSession);
+
+    const decryptedBids = bids.map(bid => ({
+      ...bid.toObject(),
+      amount: parseInt(crypto.createHash("sha256").update(bid.encrypted_amount).digest("hex"), 16) % 1000000,
+    }));
+
+    const highestBid = decryptedBids.reduce((max, bid) => bid.amount > max.amount ? bid : max, { amount: 0 });
+    if (highestBid.amount >= auction.settings.reserve_price) {
+      await Bid.updateOne(
+        { _id: highestBid._id },
+        { is_winner: true, amount: highestBid.amount },
+        { session: dbSession }
+      );
+      await Item.findByIdAndUpdate(
+        auction.settings.item_ids[0],
+        { status: "sold", winner_id: highestBid.bidder_id },
+        { session: dbSession }
+      );
+    } else {
+      await Item.findByIdAndUpdate(
+        auction.settings.item_ids[0],
+        { status: "unsold" },
+        { session: dbSession }
+      );
+    }
+
+    auction.auction_status = "completed";
+    await auction.save({ session: dbSession });
+
+    await dbSession.commitTransaction();
+    return res.status(200).json(new APIResponse(200, { bids: decryptedBids }, "Sealed bids revealed"));
+  } catch (error) {
+    await dbSession.abortTransaction();
+    throw error;
+  } finally {
+    dbSession.endSession();
+  }
+});
+
+const placeTimedBid = asyncHandler(async (req, res) => {
+  const { auction_id, item_id, amount, invite_code } = req.body;
+
+  if (!auction_id || !item_id || !amount) {
+    throw new apiError(400, "Auction ID, item ID, and amount are required");
+  }
+
+  const dbSession = await mongoose.startSession();
+  dbSession.startTransaction();
+
+  try {
+    const auction = await Auction.findOne({
+      _id: auction_id,
+      auction_status: "active",
+      "settings.item_ids": item_id,
+    }).session(dbSession);
+
+    if (!auction) {
+      throw new apiError(404, "Auction or item not found");
+    }
+
+    if (auction.is_invite_only && invite_code !== auction.invite_code) {
+      throw new apiError(403, "Invalid invite code");
+    }
+
+    const now = new Date();
+    const endTime = auction.settings.extended_end_time || auction.auction_end_time;
+    if (now > endTime) {
+      throw new apiError(400, "Auction has ended");
+    }
+
+    const item = await Item.findById(item_id).session(dbSession);
+    if (!item) throw new apiError(404, "Item not found");
+
+    const minValidBid = (await Bid.findOne({ item_id }).sort({ amount: -1 }).session(dbSession))?.amount + auction.settings.min_bid_increment || item.starting_bid;
+    if (amount < minValidBid) {
+      throw new apiError(400, `Bid must be at least ${minValidBid}`);
+    }
+
+    if (now >= new Date(endTime - auction.settings.auto_extend_duration * 1000)) {
+      auction.settings.extended_end_time = new Date(endTime.getTime() + auction.settings.auto_extend_duration * 1000);
+      await auction.save({ session: dbSession });
+    }
+
+    const bid = await Bid.create(
+      [{
+        auction_id,
+        item_id,
+        bidder_id: req.user._id,
+        amount,
+      }],
+      { session: dbSession }
+    );
+
+    await Item.findByIdAndUpdate(
+      item_id,
+      { current_bid: amount },
+      { session: dbSession }
+    );
+
+    await Auction.findByIdAndUpdate(
+      auction_id,
+      { $inc: { "settings.bid_count": 1, "settings.unique_bidders": 1 } },
+      { session: dbSession }
+    );
+
+    await dbSession.commitTransaction();
+    return res.status(201).json(new APIResponse(201, { bid: bid[0] }, "Timed bid placed successfully"));
+  } catch (error) {
+    await dbSession.abortTransaction();
+    throw error;
+  } finally {
+    dbSession.endSession();
+  }
+});
+const getMyAuctions = asyncHandler(async (req, res) => {
+  const auctions = await Auction.find({ auctioneer_id: req.user._id, deletedAt: null })
+    .populate("auctionType_id")
+    .populate("auctioneer_id", "username")
+    .lean();
+  return res
+    .status(200)
+    .json(new APIResponse(200, { auctions }, "Auctions retrieved successfully"));
+});
+
+export { 
+  createAuction, 
+  getAuctionById, 
+  getAuctionSummary, 
+  getAllAuctions, 
+  getAuctionPreview, 
+  placeSealedBid, 
+  revealSealedBids, 
+  placeTimedBid, 
+  getAuctionLeaderboard ,
+  getMyAuctions
+};

@@ -123,16 +123,16 @@ const getAllItems = async (filters = {}) => {
  * @param {Object} params - Pagination params (page, limit)
  * @returns {Promise<Object>} User's items with pagination info
  */
-const getMyItems= async (params = {}) => {
-    try {
-      const response = await apiClient.get("/item/my-items", { params });
-      return response.data.data;
-    } catch (error) {
-      const message = error.response?.data?.message || "Failed to fetch your items.";
-      console.error("Get my items error:", message);
-      throw new Error(message);
-    }
+const getMyItems = async (params = {}) => {
+  try {
+    const response = await apiClient.get("/item/my-items", { params });
+    return response.data; // Return full data object including pagination
+  } catch (error) {
+    const message = error.response?.data?.message || "Failed to fetch your items.";
+    console.error("Get my items error:", message);
+    throw new Error(message);
   }
+}
 
 /**
  * Get pending approval items (Admin only)

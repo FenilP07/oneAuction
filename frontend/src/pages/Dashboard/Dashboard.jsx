@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../../components/Navbar.jsx";
-import AuctionModal from '../../components/AuctionModal';
+import AuctionModal from "../../components/AuctionModal.jsx";
 import {
   Card,
   Col,
@@ -11,20 +11,16 @@ import {
   Table,
   Badge,
   Button,
-  ProgressBar,
   Spinner,
+  Alert,
 } from "react-bootstrap";
 import {
   FiPackage,
   FiDollarSign,
   FiAward,
   FiShoppingBag,
-  FiTrendingUp,
   FiClock,
   FiUser,
-  FiSettings,
-  FiList,
-  FiBarChart2,
 } from "react-icons/fi";
 import {
   BarChart,
@@ -39,14 +35,13 @@ import {
 import useAuthStore from "../../store/authStore";
 import { getMyAuctions, getMyBids } from "../../services/auctionService";
 import { getMyItems } from "../../services/itemService";
-import { createAuction } from "../../services/auctionService.js";
-import { createItem } from "../../services/itemService";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, isAuthenticated, getUserRole } = useAuthStore();
   const [activeTab, setActiveTab] = useState("auctioneer");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     itemsListed: 0,
     auctionsCreated: 0,
@@ -56,78 +51,70 @@ const Dashboard = () => {
     itemsWon: 0,
     watchlist: 0,
   });
-
   const [myItems, setMyItems] = useState([]);
   const [myAuctions, setMyAuctions] = useState([]);
   const [biddingActivity, setBiddingActivity] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
 
   useEffect(() => {
-    if (user) {
+    if (isAuthenticated() && user) {
       fetchDashboardData();
     }
-  }, [user, activeTab]);
+  }, [user, activeTab, isAuthenticated]);
 
   const fetchDashboardData = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-
-      if (activeTab === "auctioneer") {
-        // Fetch auctioneer-specific data
+      if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(getUserRole())) {
         const [itemsRes, auctionsRes] = await Promise.all([
           getMyItems(),
           getMyAuctions(),
         ]);
 
-        setMyItems(itemsRes.items || []);
-        setMyAuctions(auctionsRes.auctions || []);
+        // Assuming response structure is { data: { items: [] } } or { data: [] }
+        const items = itemsRes.data?.items || itemsRes.data || [];
+        const auctions = auctionsRes.data?.auctions || auctionsRes.data || [];
 
-        // Calculate stats
-        const pendingItems = itemsRes.items.filter(
-          (item) => item.status === "pending_approval"
-        ).length;
+        setMyItems(items);
+        setMyAuctions(auctions);
 
-        const activeAuctions = auctionsRes.auctions.filter(
-          (auction) => auction.auction_status === "active"
-        ).length;
+        const pendingItems = items.filter((item) => item.status === "pending_approval").length;
+        const activeAuctions = auctions.filter((auction) => auction.auction_status === "active").length;
 
         setStats((prev) => ({
           ...prev,
-          itemsListed: itemsRes.data.items.length,
-          auctionsCreated: auctionsRes.data.auctions.length,
+          itemsListed: items.length,
+          auctionsCreated: auctions.length,
           activeAuctions,
           pendingApprovals: pendingItems,
         }));
 
-        // Generate performance data (mock for now)
-        generatePerformanceData(itemsRes.data.items, auctionsRes.data.auctions);
-      } else {
-        // Fetch bidder-specific data
+        generatePerformanceData(items, auctions);
+      } else if (activeTab === "bidder") {
         const bidsRes = await getMyBids();
-        setBiddingActivity(bidsRes.data.bids || []);
+        const bids = bidsRes.data?.bids || bidsRes.data || [];
+        setBiddingActivity(bids);
 
         setStats((prev) => ({
           ...prev,
-          bidsPlaced: bidsRes.data.bids.length,
-          itemsWon: bidsRes.data.bids.filter((bid) => bid.status === "won")
-            .length,
+          bidsPlaced: bids.length,
+          itemsWon: bids.filter((bid) => bid.status === "won").length,
         }));
       }
     } catch (error) {
-      console.error("Failed to fetch dashboard data:", error);
+      setError(error.message || "Failed to fetch dashboard data. Please try again.");
+      console.error("Fetch dashboard data error:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const generatePerformanceData = (items, auctions) => {
-    // Group items by month and calculate revenue
     const monthlyData = items.reduce((acc, item) => {
       if (item.status === "available" || item.status === "sold") {
         const month = new Date(item.createdAt).getMonth();
-        const monthName = new Date(0, month).toLocaleString("default", {
-          month: "short",
-        });
+        const monthName = new Date(0, month).toLocaleString("default", { month: "short" });
 
         if (!acc[monthName]) {
           acc[monthName] = { items: 0, revenue: 0 };
@@ -135,13 +122,13 @@ const Dashboard = () => {
 
         acc[monthName].items += 1;
         if (item.status === "sold") {
-          acc[monthName].revenue += item.current_bid;
+          acc[monthName].revenue += item.current_bid || 0;
         }
+        return acc;
       }
       return acc;
     }, {});
 
-    // Convert to array format for recharts
     const performance = Object.entries(monthlyData).map(([name, data]) => ({
       name,
       items: data.items,
@@ -151,31 +138,24 @@ const Dashboard = () => {
     setPerformanceData(performance);
   };
 
-  const handleCreateAuction = async (auctionData) => {
+  const handleAuctionCreate = async (auctionData) => {
     try {
-      await createAuction(auctionData);
-      fetchDashboardData();
+      setError(null);
+      await fetchDashboardData(); // Refresh data after auction creation
+      console.log("Auction created:", auctionData);
     } catch (error) {
-      console.error("Failed to create auction:", error);
+      setError(error.message || "Failed to create auction. Please try again.");
+      console.error("Create auction error:", error);
     }
   };
-
-  const handleCreateItem = async (itemData) => {
-    try {
-      await createItem(itemData);
-      fetchDashboardData();
-    } catch (error) {
-      console.error("Failed to create item:", error);
-    }
-  };
-
-  const handleAuctionCreate = (data) => {
-		console.log('Auction created:',data);
-	}
 
   const renderAuctioneerDashboard = () => (
     <>
-      {/* Stats Cards */}
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)} dismissible>
+          {error}
+        </Alert>
+      )}
       <Row className="mb-4">
         <Col md={3} sm={6} className="mb-3">
           <Card>
@@ -239,7 +219,6 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Charts and Tables */}
       <Row>
         <Col lg={8} className="mb-4">
           <Card className="h-100">
@@ -254,6 +233,8 @@ const Dashboard = () => {
                 <div className="text-center py-5">
                   <Spinner animation="border" />
                 </div>
+              ) : performanceData.length === 0 ? (
+                <Alert variant="info">No sales data available.</Alert>
               ) : (
                 <div style={{ height: "300px" }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -263,11 +244,7 @@ const Dashboard = () => {
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar
-                        dataKey="revenue"
-                        fill="#4e73df"
-                        name="Revenue ($)"
-                      />
+                      <Bar dataKey="revenue" fill="#4e73df" name="Revenue ($)" />
                       <Bar dataKey="items" fill="#1cc88a" name="Items Sold" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -284,6 +261,8 @@ const Dashboard = () => {
                 <div className="text-center py-5">
                   <Spinner animation="border" />
                 </div>
+              ) : myItems.length === 0 ? (
+                <Alert variant="info">No items found. Add items to get started.</Alert>
               ) : (
                 <>
                   <Table hover responsive>
@@ -301,13 +280,13 @@ const Dashboard = () => {
                           onClick={() => navigate(`/items/${item._id}`)}
                           style={{ cursor: "pointer" }}
                         >
-                          <td>{item.name}</td>
+                          <td>{item.name || "Unnamed Item"}</td>
                           <td>
                             <Badge bg={getStatusBadgeColor(item.status)}>
-                              {item.status}
+                              {item.status || "Unknown"}
                             </Badge>
                           </td>
-                          <td>{item.bids || 0}</td>
+                          <td>{item.bids?.length || 0}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -326,19 +305,18 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Auction Management */}
       <Card className="mb-4">
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-3">
             <Card.Title>Auction Management</Card.Title>
-
-            <AuctionModal onAuctionCreate={handleAuctionCreate}/>
-
+            <AuctionModal onAuctionCreate={handleAuctionCreate} />
           </div>
           {loading ? (
             <div className="text-center py-5">
               <Spinner animation="border" />
             </div>
+          ) : myAuctions.length === 0 ? (
+            <Alert variant="info">No auctions found. Create an auction to get started.</Alert>
           ) : (
             <Table hover responsive>
               <thead>
@@ -353,13 +331,13 @@ const Dashboard = () => {
               <tbody>
                 {myAuctions.slice(0, 5).map((auction) => (
                   <tr key={auction._id}>
-                    <td>{auction.auction_title}</td>
+                    <td>{auction.auction_title || "Untitled Auction"}</td>
                     <td>
                       <Badge bg={getAuctionStatusBadge(auction.auction_status)}>
-                        {auction.auction_status}
+                        {auction.auction_status || "Unknown"}
                       </Badge>
                     </td>
-                    <td>{auction.settings?.item_ids?.length || 1}</td>
+                    <td>{auction.settings?.item_ids?.length || auction.settings?.item_id ? 1 : 0}</td>
                     <td>
                       {new Date(auction.auction_end_time).toLocaleDateString()}
                     </td>
@@ -376,9 +354,7 @@ const Dashboard = () => {
                         <Button
                           variant="outline-success"
                           size="sm"
-                          onClick={() =>
-                            navigate(`/auctions/${auction._id}/edit`)
-                          }
+                          onClick={() => navigate(`/auctions/${auction._id}/edit`)}
                         >
                           Edit
                         </Button>
@@ -396,7 +372,11 @@ const Dashboard = () => {
 
   const renderBidderDashboard = () => (
     <>
-      {/* Stats Cards */}
+      {error && (
+        <Alert variant="danger" onClose={() => setError(null)} dismissible>
+          {error}
+        </Alert>
+      )}
       <Row className="mb-4">
         <Col md={3} sm={6} className="mb-3">
           <Card>
@@ -460,7 +440,6 @@ const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Bidding Activity */}
       <Card className="mb-4">
         <Card.Body>
           <Card.Title className="mb-3">Your Bidding Activity</Card.Title>
@@ -468,6 +447,8 @@ const Dashboard = () => {
             <div className="text-center py-5">
               <Spinner animation="border" />
             </div>
+          ) : biddingActivity.length === 0 ? (
+            <Alert variant="info">No bidding activity found.</Alert>
           ) : (
             <Table hover responsive>
               <thead>
@@ -482,11 +463,11 @@ const Dashboard = () => {
               <tbody>
                 {biddingActivity.slice(0, 5).map((bid) => (
                   <tr key={bid._id}>
-                    <td>{bid.item?.name || "N/A"}</td>
-                    <td>${bid.amount}</td>
+                    <td>{bid.item?.name || "Unknown Item"}</td>
+                    <td>${bid.amount || 0}</td>
                     <td>
                       <Badge bg={getBidStatusBadge(bid.status)}>
-                        {bid.status}
+                        {bid.status || "Unknown"}
                       </Badge>
                     </td>
                     <td>{bid.timeLeft || "N/A"}</td>
@@ -503,9 +484,7 @@ const Dashboard = () => {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() =>
-                            navigate(`/items/${bid.item?._id}/bid`)
-                          }
+                          onClick={() => navigate(`/items/${bid.item?._id}/bid`)}
                         >
                           Rebid
                         </Button>
@@ -519,19 +498,14 @@ const Dashboard = () => {
         </Card.Body>
       </Card>
 
-      {/* Watchlist and Recommendations */}
       <Row>
         <Col md={6} className="mb-4">
           <Card className="h-100">
             <Card.Body>
               <Card.Title className="mb-3">Your Watchlist</Card.Title>
-              {/* Watchlist content would go here */}
               <div className="text-center py-5">
                 <p>Your watched items will appear here</p>
-                <Button
-                  variant="outline-primary"
-                  onClick={() => navigate("/watchlist")}
-                >
+                <Button variant="outline-primary" onClick={() => navigate("/watchlist")}>
                   View Watchlist
                 </Button>
               </div>
@@ -542,13 +516,9 @@ const Dashboard = () => {
           <Card className="h-100">
             <Card.Body>
               <Card.Title className="mb-3">Recommended For You</Card.Title>
-              {/* Recommendations content would go here */}
               <div className="text-center py-5">
                 <p>Recommended items will appear here</p>
-                <Button
-                  variant="outline-primary"
-                  onClick={() => navigate("/auctions")}
-                >
+                <Button variant="outline-primary" onClick={() => navigate("/auctions")}>
                   Browse Auctions
                 </Button>
               </div>
@@ -604,7 +574,7 @@ const Dashboard = () => {
     }
   };
 
-  if (!user) {
+  if (!isAuthenticated() || !user) {
     return (
       <div className="container mt-5">
         <div className="row justify-content-center">
@@ -636,16 +606,13 @@ const Dashboard = () => {
           <Button
             variant={activeTab === "auctioneer" ? "primary" : "outline-primary"}
             onClick={() =>
-              navigate(
-                activeTab === "auctioneer" ? "/itemListingPage" : "/auctions"
-              )
+              navigate(activeTab === "auctioneer" ? "/itemListingPage" : "/auctions")
             }
           >
             {activeTab === "auctioneer" ? "Add New Item" : "Browse Auctions"}
           </Button>
         </div>
 
-        {/* Role Tabs */}
         <Tabs
           activeKey={activeTab}
           onSelect={(k) => setActiveTab(k)}
@@ -653,21 +620,14 @@ const Dashboard = () => {
         >
           <Tab
             eventKey="auctioneer"
-            title={
-              <span>
-                <FiUser className="me-1" /> Auctioneer
-              </span>
-            }
+            title={<span><FiUser className="me-1" /> Auctioneer</span>}
+            disabled={!["admin", "auctioneer"].includes(getUserRole())}
           >
             {renderAuctioneerDashboard()}
           </Tab>
           <Tab
             eventKey="bidder"
-            title={
-              <span>
-                <FiShoppingBag className="me-1" /> Bidder
-              </span>
-            }
+            title={<span><FiShoppingBag className="me-1" /> Bidder</span>}
           >
             {renderBidderDashboard()}
           </Tab>

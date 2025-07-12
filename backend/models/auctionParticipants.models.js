@@ -35,13 +35,13 @@ const auctionParticipantSchema = Schema(
     },
   },
   {
-    timeStamps: true,
+    timestamps: true,
   }
 );
 
 auctionParticipantSchema.pre("save", async function (next) {
   try {
-    const session = await mongoose.model("AuctionSessions").findOne({
+    const session = await mongoose.model("AuctionSession").findOne({
       session_id: this.session_id,
       status: { $in: ["pending", "active"] },
     });

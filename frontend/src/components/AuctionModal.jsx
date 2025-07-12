@@ -33,7 +33,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
   const now = new Date();
   const currentDate = now.toISOString().split("T")[0];
   const currentTime = now
-    .toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+    .toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     .slice(0, 5);
 
   const handleAuctionCreate = (data) => {
@@ -89,9 +93,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
     if (!auctionData.auction_title) return "Auction title is required.";
     if (!auctionData.startDate) return "Start date is required.";
     if (!auctionData.startTime) return "Start time is required.";
-    if (!auctionData.timePeriod || auctionData.timePeriod <= 0) return "Valid duration is required.";
+    if (!auctionData.timePeriod || auctionData.timePeriod <= 0)
+      return "Valid duration is required.";
     if (!auctionData.agreement) return "You must agree to the terms.";
-    if (auctionData.items.length === 0) return "At least one item must be selected.";
+    if (auctionData.items.length === 0)
+      return "At least one item must be selected.";
     return null;
   };
 
@@ -105,9 +111,18 @@ const AuctionModal = ({ onAuctionCreate }) => {
     setIsSubmitting(true);
     setError(null);
 
-    const { startDate, startTime, timePeriod, items, auction_title, auction_description } = auctionData;
+    const {
+      startDate,
+      startTime,
+      timePeriod,
+      items,
+      auction_title,
+      auction_description,
+    } = auctionData;
     const auction_start_time = new Date(`${startDate}T${startTime}`);
-    const auction_end_time = new Date(auction_start_time.getTime() + timePeriod * 60000);
+    const auction_end_time = new Date(
+      auction_start_time.getTime() + timePeriod * 60000
+    );
 
     const payload = {
       auctionType_id: selectedAuctionType._id,
@@ -115,7 +130,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
       auction_description,
       auction_start_time,
       auction_end_time,
-      settings: selectedAuctionType.type_name === "live" ? { item_ids: items } : { item_id: items[0] },
+      settings:
+        selectedAuctionType.type_name === "live"
+          ? { item_ids: items }
+          : { item_id: items[0] },
     };
 
     try {
@@ -159,7 +177,8 @@ const AuctionModal = ({ onAuctionCreate }) => {
         modal.classList.remove("show");
         modal.style.display = "none";
         document.body.classList.remove("modal-open");
-        if (document.body.contains(backdrop)) document.body.removeChild(backdrop);
+        if (document.body.contains(backdrop))
+          document.body.removeChild(backdrop);
       };
     }
   }, [showModal]);
@@ -178,12 +197,21 @@ const AuctionModal = ({ onAuctionCreate }) => {
 
   return (
     <>
-      <button className="btn btn-primary btn-sm" onClick={() => setShowModal(true)}>
+      <button
+        className="btn btn-primary btn-sm"
+        onClick={() => setShowModal(true)}
+      >
         <i className="bi bi-plus me-1"></i>
         Create Auction
       </button>
 
-      <div className="modal fade" tabIndex="-1" role="dialog" aria-labelledby="auctionModalLabel" aria-hidden={!showModal}>
+      <div
+        className="modal fade"
+        tabIndex="-1"
+        role="dialog"
+        aria-labelledby="auctionModalLabel"
+        aria-hidden={!showModal}
+      >
         <div className="modal-dialog modal-lg" role="document">
           <div className="modal-content">
             <div className="modal-header bg-primary text-white py-2">
@@ -212,7 +240,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                   <h6 className="mb-3">Select Auction Type</h6>
                   <div className="d-flex justify-content-center gap-2">
                     {auctionTypes.length === 0 ? (
-                      <div className="alert alert-info py-2 px-3">No auction types available</div>
+                      <div className="alert alert-info py-2 px-3">
+                        No auction types available
+                      </div>
                     ) : (
                       auctionTypes.map((type) => (
                         <button
@@ -240,7 +270,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                     >
                       <i className="bi bi-arrow-left"></i>
                     </button>
-                    <h6 className="m-0 text-capitalize">{selectedAuctionType.type_name} Auction</h6>
+                    <h6 className="m-0 text-capitalize">
+                      {selectedAuctionType.type_name} Auction
+                    </h6>
                   </div>
 
                   <div className="row g-2">
@@ -248,26 +280,40 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       <h6 className="mb-2 fs-6">Select Items</h6>
                       {loadingItems ? (
                         <div className="text-center py-2">
-                          <div className="spinner-border text-primary" role="status">
+                          <div
+                            className="spinner-border text-primary"
+                            role="status"
+                          >
                             <span className="visually-hidden">Loading...</span>
                           </div>
                         </div>
                       ) : itemsData.items.length === 0 ? (
-                        <div className="alert alert-info py-2 px-3 mb-2">No items available</div>
+                        <div className="alert alert-info py-2 px-3 mb-2">
+                          No items available
+                        </div>
                       ) : (
                         <>
                           <div className="row row-cols-2 row-cols-md-3 g-2">
                             {itemsData.items.map((item) => (
                               <div className="col" key={item._id}>
                                 <div
-                                  className={`card h-100 ${auctionData.items.includes(item._id) ? "border-success" : ""}`}
+                                  className={`card h-100 ${
+                                    auctionData.items.includes(item._id)
+                                      ? "border-success"
+                                      : ""
+                                  }`}
                                   style={{ cursor: "pointer" }}
                                   onClick={() => handleItemSelect(item)}
                                 >
-                                  <div className="card-img-top overflow-hidden" style={{ height: "100px" }}>
+                                  <div
+                                    className="card-img-top overflow-hidden"
+                                    style={{ height: "100px" }}
+                                  >
                                     <img
                                       src={
-                                        item.images?.find((img) => img.is_primary)?.image_url ||
+                                        item.images?.find(
+                                          (img) => img.is_primary
+                                        )?.image_url ||
                                         item.images?.[0]?.image_url ||
                                         "https://via.placeholder.com/150x100?text=No+Image"
                                       }
@@ -276,15 +322,21 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                     />
                                   </div>
                                   <div className="card-body p-2">
-                                    <h6 className="card-title mb-0 fs-6 text-truncate">{item.name}</h6>
+                                    <h6 className="card-title mb-0 fs-6 text-truncate">
+                                      {item.name}
+                                    </h6>
                                   </div>
                                   <div className="card-footer p-1 bg-transparent">
                                     <button
                                       className={`btn btn-sm w-100 ${
-                                        auctionData.items.includes(item._id) ? "btn-success" : "btn-outline-primary"
+                                        auctionData.items.includes(item._id)
+                                          ? "btn-success"
+                                          : "btn-outline-primary"
                                       }`}
                                     >
-                                      {auctionData.items.includes(item._id) ? "✓" : "Select"}
+                                      {auctionData.items.includes(item._id)
+                                        ? "✓"
+                                        : "Select"}
                                     </button>
                                   </div>
                                 </div>
@@ -294,32 +346,60 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           {itemsData.totalPages > 1 && (
                             <nav aria-label="Items pagination" className="mt-3">
                               <ul className="pagination pagination-sm justify-content-center">
-                                <li className={`page-item ${itemsData.currentPage === 1 ? "disabled" : ""}`}>
-                                  <button
-                                    className="page-link"
-                                    onClick={() => handlePageChange(itemsData.currentPage - 1)}
-                                  >
-                                    Previous
-                                  </button>
-                                </li>
-                                {[...Array(itemsData.totalPages).keys()].map((page) => (
-                                  <li
-                                    key={page + 1}
-                                    className={`page-item ${itemsData.currentPage === page + 1 ? "active" : ""}`}
-                                  >
-                                    <button className="page-link" onClick={() => handlePageChange(page + 1)}>
-                                      {page + 1}
-                                    </button>
-                                  </li>
-                                ))}
                                 <li
                                   className={`page-item ${
-                                    itemsData.currentPage === itemsData.totalPages ? "disabled" : ""
+                                    itemsData.currentPage === 1
+                                      ? "disabled"
+                                      : ""
                                   }`}
                                 >
                                   <button
                                     className="page-link"
-                                    onClick={() => handlePageChange(itemsData.currentPage + 1)}
+                                    onClick={() =>
+                                      handlePageChange(
+                                        itemsData.currentPage - 1
+                                      )
+                                    }
+                                  >
+                                    Previous
+                                  </button>
+                                </li>
+                                {[...Array(itemsData.totalPages).keys()].map(
+                                  (page) => (
+                                    <li
+                                      key={page + 1}
+                                      className={`page-item ${
+                                        itemsData.currentPage === page + 1
+                                          ? "active"
+                                          : ""
+                                      }`}
+                                    >
+                                      <button
+                                        className="page-link"
+                                        onClick={() =>
+                                          handlePageChange(page + 1)
+                                        }
+                                      >
+                                        {page + 1}
+                                      </button>
+                                    </li>
+                                  )
+                                )}
+                                <li
+                                  className={`page-item ${
+                                    itemsData.currentPage ===
+                                    itemsData.totalPages
+                                      ? "disabled"
+                                      : ""
+                                  }`}
+                                >
+                                  <button
+                                    className="page-link"
+                                    onClick={() =>
+                                      handlePageChange(
+                                        itemsData.currentPage + 1
+                                      )
+                                    }
                                   >
                                     Next
                                   </button>
@@ -338,7 +418,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         </div>
                         <div className="card-body p-2">
                           <div className="mb-2">
-                            <label className="form-label mb-0 fs-6" htmlFor="auction_title">
+                            <label
+                              className="form-label mb-0 fs-6"
+                              htmlFor="auction_title"
+                            >
                               Title*
                             </label>
                             <input
@@ -357,7 +440,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           </div>
 
                           <div className="mb-2">
-                            <label className="form-label mb-0 fs-6" htmlFor="auction_description">
+                            <label
+                              className="form-label mb-0 fs-6"
+                              htmlFor="auction_description"
+                            >
                               Description
                             </label>
                             <textarea
@@ -369,13 +455,19 @@ const AuctionModal = ({ onAuctionCreate }) => {
                               rows="2"
                               aria-describedby="auction_description_help"
                             />
-                            <div id="auction_description_help" className="form-text">
+                            <div
+                              id="auction_description_help"
+                              className="form-text"
+                            >
                               Provide details about the auction (optional).
                             </div>
                           </div>
 
                           <div className="mb-2">
-                            <label className="form-label mb-0 fs-6" htmlFor="startDate">
+                            <label
+                              className="form-label mb-0 fs-6"
+                              htmlFor="startDate"
+                            >
                               Start Date*
                             </label>
                             <input
@@ -391,7 +483,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           </div>
 
                           <div className="mb-2">
-                            <label className="form-label mb-0 fs-6" htmlFor="startTime">
+                            <label
+                              className="form-label mb-0 fs-6"
+                              htmlFor="startTime"
+                            >
                               Start Time*
                             </label>
                             <input
@@ -399,7 +494,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
                               id="startTime"
                               name="startTime"
                               value={auctionData.startTime || currentTime}
-                              min={auctionData.startDate === currentDate ? currentTime : "00:00"}
+                              min={
+                                auctionData.startDate === currentDate
+                                  ? currentTime
+                                  : "00:00"
+                              }
                               onChange={handleInputChange}
                               className="form-control form-control-sm"
                               required
@@ -407,7 +506,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           </div>
 
                           <div className="mb-2">
-                            <label className="form-label mb-0 fs-6" htmlFor="timePeriod">
+                            <label
+                              className="form-label mb-0 fs-6"
+                              htmlFor="timePeriod"
+                            >
                               Duration (min)*
                             </label>
                             <input
@@ -432,10 +534,18 @@ const AuctionModal = ({ onAuctionCreate }) => {
                               type="checkbox"
                               id="agreementCheck"
                               checked={auctionData.agreement}
-                              onChange={(e) => setAuctionData({ ...auctionData, agreement: e.target.checked })}
+                              onChange={(e) =>
+                                setAuctionData({
+                                  ...auctionData,
+                                  agreement: e.target.checked,
+                                })
+                              }
                               required
                             />
-                            <label className="form-check-label small" htmlFor="agreementCheck">
+                            <label
+                              className="form-check-label small"
+                              htmlFor="agreementCheck"
+                            >
                               I agree to the auction terms and conditions
                             </label>
                           </div>
@@ -463,7 +573,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
                 >
                   {isSubmitting ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                      <span
+                        className="spinner-border spinner-border-sm me-1"
+                        role="status"
+                        aria-hidden="true"
+                      ></span>
                       Creating
                     </>
                   ) : (

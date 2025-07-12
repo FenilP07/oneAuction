@@ -294,6 +294,17 @@ const getMyAvailableItems = asyncHandler(async (req, res) => {
     .limit(parseInt(limit))
     .sort({ createdAt: -1 });
 
+  // Get images for all items
+  const itemsWithImages = await Promise.all(items.map(async (item) => {
+    const images = await ItemImages.find({ item_id: item._id })
+      .select("image_url is_primary order")
+      .sort({ order: 1 });
+    return {
+      ...item.toObject(),
+      images
+    };
+  }));
+
   logger.info(`Retrieved ${items.length} available items for user`, {
     userId: req.user._id,
   });
@@ -305,7 +316,7 @@ const getMyAvailableItems = asyncHandler(async (req, res) => {
         totalItems,
         currentPage: parseInt(page),
         totalPages: Math.ceil(totalItems / limit),
-        items,
+        items: itemsWithImages,
       },
       "User's available items fetched successfully"
     )
