@@ -1,16 +1,15 @@
-import apiClient from "../utils/apiClient"
+import apiClient from "../utils/apiClient";
 
 const getAllAuctionTypes = async () => {
-try {
-    const response =await apiClient.get('auction/auctionType');
-   return response.data.data.types;
-
-} catch (error) {
-    error.response?.data?.message|| error.message || 'An unexpected error occurred';
-    throw new Error(error);
-    
-}
-
+  try {
+    const response = await apiClient.get('/auction/auctionType');
+    console.log('getAllAuctionTypes response:', response.data);
+    return response.data.data.types || [];
+  } catch (error) {
+    const message = error.response?.data?.message || 'Failed to fetch auction types';
+    console.error('getAllAuctionTypes error:', message);
+    throw new Error(message);
+  }
 };
 
-export default getAllAuctionTypes
+export default getAllAuctionTypes;

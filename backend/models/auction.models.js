@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import AuctionType from "./auctionTypes.models.js";
+import { v4 as uuidv4 } from 'uuid';  
 
 const auctionSchema = new mongoose.Schema(
   {

@@ -41,7 +41,7 @@ const Dashboard = () => {
   const { user, isAuthenticated, getUserRole } = useAuthStore();
   const [activeTab, setActiveTab] = useState("auctioneer");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({ items: null, auctions: null, bids: null });
   const [stats, setStats] = useState({
     itemsListed: 0,
     auctionsCreated: 0,
@@ -56,25 +56,125 @@ const Dashboard = () => {
   const [biddingActivity, setBiddingActivity] = useState([]);
   const [performanceData, setPerformanceData] = useState([]);
 
-  useEffect(() => {
-    if (isAuthenticated() && user) {
-      fetchDashboardData();
+  // Retry function for failed requests
+  const retryRequest = async (fn, maxRetries = 3, delay = 1000) => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+        console.warn(`Retry ${i + 1}/${maxRetries} failed:`, error.message);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
-  }, [user, activeTab, isAuthenticated]);
+  };
 
-  const fetchDashboardData = async () => {
+ useEffect(() => {
+    const checkAndFetch = async () => {
+      const isLoggedIn = isAuthenticated?.();
+      const role = getUserRole?.();
+      console.log("Effect triggered | Tab:", activeTab, "| Role:", role, "| Auth:", isLoggedIn);
+
+      if (isLoggedIn && user) {
+        await fetchDashboardData(role);
+      } else {
+        console.log("User not authenticated or missing.");
+      }
+    };
+    checkAndFetch();
+  }, [user, activeTab]);
+
+  // const fetchDashboardData = async () => {
+  //   setLoading(true);
+  //   setErrors({ items: null, auctions: null, bids: null });
+
+  //   try {
+  //     if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(getUserRole())) {
+  //       const [itemsRes, auctionsRes] = await Promise.all([
+  //         retryRequest(() => getMyItems()).catch((err) => {
+  //           console.error('getMyItems failed:', err.message);
+  //           setErrors((prev) => ({ ...prev, items: err.message || 'Failed to fetch items' }));
+  //           return { items: [], totalItems: 0, currentPage: 1, totalPages: 1 };
+  //         }),
+  //         retryRequest(() => getMyAuctions()).catch((err) => {
+  //           console.error('getMyAuctions failed:', err.message);
+  //           setErrors((prev) => ({ ...prev, auctions: err.message || 'Failed to fetch auctions' }));
+  //           return { auctions: [] };
+  //         }),
+  //       ]);
+
+  //       const items = itemsRes.items || [];
+  //       const auctions = auctionsRes || [];
+
+  //       console.log('Fetched items:', items);
+  //       console.log('Fetched auctions:', auctions);
+
+  //       setMyItems(items);
+  //       setMyAuctions(auctions);
+
+  //       const pendingItems = items.filter((item) => item.status === "pending_approval").length;
+  //       const activeAuctions = auctions.filter((auction) => auction.auction_status === "active").length;
+
+  //       setStats((prev) => ({
+  //         ...prev,
+  //         itemsListed: items.length,
+  //         auctionsCreated: auctions.length,
+  //         activeAuctions,
+  //         pendingApprovals: pendingItems,
+  //       }));
+
+  //       generatePerformanceData(items, auctions);
+  //     } else if (activeTab === "bidder") {
+  //       const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
+  //         console.error('getMyBids failed:', err.message);
+  //         setErrors((prev) => ({ ...prev, bids: err.message || 'Failed to fetch bids' }));
+  //         return { bids: [] };
+  //       });
+  //       const bids = bidsRes.bids || [];
+  //       console.log('Fetched bids:', bids);
+  //       setBiddingActivity(bids);
+
+  //       setStats((prev) => ({
+  //         ...prev,
+  //         bidsPlaced: bids.length,
+  //         itemsWon: bids.filter((bid) => bid.status === "won").length,
+  //       }));
+  //     }
+  //   } catch (error) {
+  //     console.error("Fetch dashboard data error:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+ const fetchDashboardData = async (role) => {
     setLoading(true);
-    setError(null);
+    setErrors({ items: null, auctions: null, bids: null });
+    setStats({
+      itemsListed: 0, auctionsCreated: 0, activeAuctions: 0, pendingApprovals: 0,
+      bidsPlaced: 0, itemsWon: 0, watchlist: 0, totalSpent: 0,
+    });
+
     try {
-      if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(getUserRole())) {
+      if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(role)) {
+        console.log("Fetching data for auctioneer...");
         const [itemsRes, auctionsRes] = await Promise.all([
-          getMyItems(),
-          getMyAuctions(),
+          retryRequest(() => getMyItems()).catch((err) => {
+            console.error("getMyItems failed:", err.message);
+            setErrors((prev) => ({ ...prev, items: err.message || "Failed to fetch items" }));
+            return { items: [] };
+          }),
+          retryRequest(() => getMyAuctions()).catch((err) => {
+            console.error("getMyAuctions failed:", err.message);
+            setErrors((prev) => ({ ...prev, auctions: err.message || "Failed to fetch auctions" }));
+            return [];
+          }),
         ]);
 
-        // Assuming response structure is { data: { items: [] } } or { data: [] }
-        const items = itemsRes.data?.items || itemsRes.data || [];
-        const auctions = auctionsRes.data?.auctions || auctionsRes.data || [];
+        const items = itemsRes.items || [];
+        const auctions = auctionsRes || [];
+
+        console.log("Fetched items:", items.length);
+        console.log("Fetched auctions:", auctions.length);
 
         setMyItems(items);
         setMyAuctions(auctions);
@@ -92,18 +192,31 @@ const Dashboard = () => {
 
         generatePerformanceData(items, auctions);
       } else if (activeTab === "bidder") {
-        const bidsRes = await getMyBids();
-        const bids = bidsRes.data?.bids || bidsRes.data || [];
-        setBiddingActivity(bids);
+        console.log("Fetching data for bidder...");
 
+        const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
+          console.error("getMyBids failed:", err.message);
+          setErrors((prev) => ({ ...prev, bids: err.message || "Failed to fetch bids" }));
+          return { bids: [] };
+        });
+
+        const bids = bidsRes.bids || [];
+
+        console.log("Fetched bids:", bids.length);
+
+        const totalSpent = bids
+          .filter((bid) => bid.status === "won")
+          .reduce((sum, bid) => sum + (bid.amount || 0), 0);
+
+        setBiddingActivity(bids);
         setStats((prev) => ({
           ...prev,
           bidsPlaced: bids.length,
           itemsWon: bids.filter((bid) => bid.status === "won").length,
+          totalSpent,
         }));
       }
     } catch (error) {
-      setError(error.message || "Failed to fetch dashboard data. Please try again.");
       console.error("Fetch dashboard data error:", error);
     } finally {
       setLoading(false);
@@ -140,20 +253,26 @@ const Dashboard = () => {
 
   const handleAuctionCreate = async (auctionData) => {
     try {
-      setError(null);
-      await fetchDashboardData(); // Refresh data after auction creation
+      setErrors((prev) => ({ ...prev, auctions: null }));
       console.log("Auction created:", auctionData);
+      setMyAuctions((prev) => [...prev, auctionData.auction || auctionData]);
+      await fetchDashboardData();
     } catch (error) {
-      setError(error.message || "Failed to create auction. Please try again.");
+      setErrors((prev) => ({ ...prev, auctions: error.message || "Failed to create auction" }));
       console.error("Create auction error:", error);
     }
   };
 
   const renderAuctioneerDashboard = () => (
     <>
-      {error && (
-        <Alert variant="danger" onClose={() => setError(null)} dismissible>
-          {error}
+      {errors.items && (
+        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, items: null }))} dismissible>
+          {errors.items}
+        </Alert>
+      )}
+      {errors.auctions && (
+        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, auctions: null }))} dismissible>
+          {errors.auctions}
         </Alert>
       )}
       <Row className="mb-4">
@@ -372,9 +491,9 @@ const Dashboard = () => {
 
   const renderBidderDashboard = () => (
     <>
-      {error && (
-        <Alert variant="danger" onClose={() => setError(null)} dismissible>
-          {error}
+      {errors.bids && (
+        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, bids: null }))} dismissible>
+          {errors.bids}
         </Alert>
       )}
       <Row className="mb-4">

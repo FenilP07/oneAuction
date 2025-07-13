@@ -1,10 +1,8 @@
+// services/itemService.js
 import apiClient from "../utils/apiClient";
 
 /**
  * Create a new item with images
- * @param {Object} itemData - Item data
- * @param {Array} images - Array of image files
- * @returns {Promise<Object>} Created item data
  */
 const createItem = async (itemData, images = []) => {
   try {
@@ -36,9 +34,6 @@ const createItem = async (itemData, images = []) => {
 
 /**
  * Update an existing item
- * @param {string} itemId - ID of the item to update
- * @param {Object} updateData - Fields to update
- * @returns {Promise<Object>} Updated item data
  */
 const updateItem = async (itemId, updateData) => {
   try {
@@ -55,8 +50,6 @@ const updateItem = async (itemId, updateData) => {
 
 /**
  * Get item by ID
- * @param {string} itemId
- * @returns {Promise<Object>} Item details
  */
 const getItemById = async (itemId) => {
   try {
@@ -72,8 +65,6 @@ const getItemById = async (itemId) => {
 
 /**
  * Approve an item (Admin only)
- * @param {string} itemId
- * @returns {Promise<Object>} Approved item
  */
 const approveItem = async (itemId) => {
   try {
@@ -88,8 +79,6 @@ const approveItem = async (itemId) => {
 
 /**
  * Reject an item (Admin only)
- * @param {string} itemId
- * @returns {Promise<Object>} Rejected item
  */
 const rejectItem = async (itemId) => {
   try {
@@ -104,8 +93,6 @@ const rejectItem = async (itemId) => {
 
 /**
  * Get all available items with filters
- * @param {Object} filters - Filter options (category_id, name, minBid, maxBid, page, limit)
- * @returns {Promise<Object>} List of items with pagination info
  */
 const getAllItems = async (filters = {}) => {
   try {
@@ -120,23 +107,23 @@ const getAllItems = async (filters = {}) => {
 
 /**
  * Get items created by the current user
- * @param {Object} params - Pagination params (page, limit)
- * @returns {Promise<Object>} User's items with pagination info
  */
 const getMyItems = async (params = {}) => {
   try {
     const response = await apiClient.get("/item/my-items", { params });
-    return response.data; // Return full data object including pagination
+    console.log('getMyItems response:', response.data);
+    return response.data?.data?.items
+      ? response.data.data
+      : { items: response.data.data || [], totalItems: 0, currentPage: 1, totalPages: 1 };
   } catch (error) {
     const message = error.response?.data?.message || "Failed to fetch your items.";
-    console.error("Get my items error:", message);
+    console.error("Get my items error:", message, error.response?.status);
     throw new Error(message);
   }
-}
+};
 
 /**
  * Get pending approval items (Admin only)
- * @returns {Promise<Object>} Items and stats
  */
 const getPendingApprovalItems = async () => {
   try {
@@ -153,9 +140,6 @@ const getPendingApprovalItems = async () => {
 
 /**
  * Handle item approval or rejection (Admin only)
- * @param {string} itemId
- * @param {string} action - 'approve' or 'reject'
- * @returns {Promise<Object>} Updated item
  */
 const handleItemApproval = async (itemId, action) => {
   try {
@@ -168,7 +152,11 @@ const handleItemApproval = async (itemId, action) => {
     throw new Error(message);
   }
 };
- const getMyAvailableItems = async (params = {}) => {
+
+/**
+ * Get available items created by the current user
+ */
+const getMyAvailableItems = async (params = {}) => {
   try {
     const response = await apiClient.get("/item/my-available-items", { params });
     return response.data?.data || { items: [], totalItems: 0, currentPage: 1, totalPages: 1 };
@@ -189,5 +177,5 @@ export {
   getMyItems,
   getPendingApprovalItems,
   handleItemApproval,
-  getMyAvailableItems
+  getMyAvailableItems,
 };
