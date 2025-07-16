@@ -72,93 +72,96 @@ const createAuctionSession = asyncHandler(async (req, res) => {
 
 const startAuctionSession = asyncHandler(async (req, res) => {
   const { session_id } = req.params;
-
-  const session = await AuctionSession.findOne({
-    _id: session_id,
-    status: "pending",
-  });
-
-  if (!session) {
-    throw new apiError(404, "INVALID_SESSION", "Session not found or already started");
-  }
-
-  // First get the live auction type ID
-  const liveAuctionType = await AuctionType.findOne({ type_name: "live" });
-  if (!liveAuctionType) {
-    throw new apiError(400, "AUCTION_TYPE_NOT_FOUND", "Live auction type not found");
-  }
-
-  const auction = await Auction.findOne({
-    _id: session.auction_id,
-    auctioneer_id: req.user._id,
-    auctionType_id: liveAuctionType._id,
-  });
-
-  if (!auction) {
-    throw new apiError(403, "FORBIDDEN", "You don't have permission to start this session");
-  }
+  const userId = req.user._id;
 
   const dbSession = await mongoose.startSession();
   dbSession.startTransaction();
-  try {
-    session.status = "active";
-    session.actual_start_time = new Date();
-    await session.save({ session: dbSession });
 
-    if (auction.auction_status === "upcoming") {
-      auction.auction_status = "active";
-      await auction.save({ session: dbSession });
+  try {
+    const session = await AuctionSession.findOne({
+      _id: session_id,
+      status: "pending",
+    }).session(dbSession);
+
+    if (!session) {
+      throw new apiError(404, "Session not found or already started");
     }
 
+    const auction = await Auction.findOne({
+      _id: session.auction_id,
+      auctioneer_id: userId,
+      auctionType_id: (await AuctionType.findOne({ type_name: "live" }))._id,
+    }).session(dbSession);
+
+    if (!auction) {
+      throw new apiError(403, "Auction not found or unauthorized");
+    }
+
+    session.status = "active";
+    session.actual_start_time = new Date();
+    session.bidding_window = new Date(Date.now() + 60 * 1000); // 1 minute for first item
+    await session.save({ session: dbSession });
+
+    auction.auction_status = "active";
+    await auction.save({ session: dbSession });
+
     await dbSession.commitTransaction();
+    return res.status(200).json(new APIResponse(200, { session }, "Session started successfully"));
   } catch (error) {
     await dbSession.abortTransaction();
     throw error;
   } finally {
     dbSession.endSession();
   }
-
-  res.status(200).json(new APIResponse(200, { session }, "Auction session started successfully"));
 });
+
+
 
 const joinAuctionSession = asyncHandler(async (req, res) => {
   const { session_id } = req.params;
   const { session_code } = req.body;
 
-  if (!session_code) {
-    throw new apiError(400, "MISSING_SESSION_CODE", "Session code is required");
-  }
-
   const session = await AuctionSession.findOne({
     _id: session_id,
-    session_code: { $regex: `^${session_code}$`, $options: "i" },
     status: { $in: ["pending", "active"] },
   });
 
   if (!session) {
-    throw new apiError(404, "INVALID_SESSION_CODE", "Session not found or invalid session code");
+    throw new apiError(404, "Session not found or not joinable");
+  }
+
+  const auction = await Auction.findById(session.auction_id);
+  if (!auction) {
+    throw new apiError(404, "Auction not found");
+  }
+
+  if (auction.is_invite_only && session_code !== session.session_code) {
+    throw new apiError(403, "Invalid session code");
   }
 
   const existingParticipant = await AuctionParticipant.findOne({
-    auctionId: session.auction_id,
-    User_id: req.user._id,
+    session_id,
+    user_id: req.user._id,
   });
 
   if (existingParticipant) {
-    throw new apiError(400, "ALREADY_JOINED", "User already joined this auction session");
+    throw new apiError(400, "User already joined this session");
   }
 
-  const participant = new AuctionParticipant({
-    auctionId: session.auction_id,
+  const participant = await AuctionParticipant.create({
+    auction_id: session.auction_id,
     session_id,
-    User_id: req.user._id,
-    joined_at: new Date(),
+    user_id: req.user._id,
     status: "active",
+    joined_at: new Date(),
     last_activity: new Date(),
   });
 
-  await participant.save();
-  res.status(200).json(new APIResponse(200, { participant }, "Joined auction session successfully"));
+  await AuctionSession.findByIdAndUpdate(session_id, {
+    $inc: { participant_count: 1 },
+  });
+
+  return res.status(200).json(new APIResponse(200, { participant }, "Joined auction session successfully"));
 });
 
 const getAuctionSession = asyncHandler(async (req, res) => {

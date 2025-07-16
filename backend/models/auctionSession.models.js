@@ -8,24 +8,15 @@ const auctionSessionSchema = new Schema(
       required: true,
       index: true,
     },
-    session_code: {
+     session_code: {
       type: String,
-      required: true,
-      unique: true,
-      default: () => {
-        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        let code = "";
-        for (let i = 0; i < 6; i++) {
-          code += characters.charAt(
-            Math.floor(Math.random() * characters.length)
-          );
-        }
-        return code;
-      },
+      default: () => uuidv4().slice(0, 8).toUpperCase(),
+      index: true,
+      sparse: true,
     },
     status: {
       type: String,
-      enum: ["pending", "active", "completed", "cancelled"],
+      enum: ["pending", "active", "paused", "completed", "cancelled"],
       default: "pending",
       index: true,
     },
@@ -43,6 +34,13 @@ const auctionSessionSchema = new Schema(
     actual_end_time: {
       type: Date,
     },
+     participant_count: {
+      type: Number,
+      default: 0,
+    },
+    bidding_window: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -51,12 +49,17 @@ const auctionSessionSchema = new Schema(
 
 auctionSessionSchema.pre("save", async function (next) {
   try {
-    const auction = await mongoose.model("Auction").findOne({
-      _id: this.auction_id,
-      auctionType_id: await mongoose.model("AuctionType").findOne({ type_name: "live" }).select("_id"),
-      auction_status: { $in: ["upcoming", "active"] },
-    });
-    if (!auction) throw new Error("Invalid or non-live auction");
+    const auction = await mongoose
+      .model("Auction")
+      .findById(this.auction_id)
+      .populate("auctionType_id");
+    if (!auction) throw new Error("Invalid auction");
+    if (auction.auctionType_id.type_name !== "live") {
+      throw new Error("Only live auctions can have sessions");
+    }
+    if (auction.auction_status === "completed" || auction.auction_status === "cancelled") {
+      throw new Error("Cannot create sessions for completed or cancelled auctions");
+    }
 
     if (this.start_time >= this.end_time) {
       throw new Error("Start time must be before end time");
@@ -64,6 +67,16 @@ auctionSessionSchema.pre("save", async function (next) {
 
     if (this.end_time > auction.auction_end_time) {
       throw new Error("Session end time cannot exceed auction end time");
+    }
+
+    // Require session_code for invite-only auctions
+    if (auction.is_invite_only && !this.session_code) {
+      throw new Error("Invite-only auctions require a session code");
+    }
+
+    // Clear session_code for public auctions
+    if (!auction.is_invite_only) {
+      this.session_code = null;
     }
 
     next();
