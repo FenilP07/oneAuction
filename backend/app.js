@@ -10,6 +10,10 @@ import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
 import redis from "redis";
+import mongoose from "mongoose";  // Added mongoose import
+import jwt from "jsonwebtoken";  // Added jwt import
+import { apiError } from "./utils/apiError.js"; // Added apiError import
+
 import { errorHandler } from "./middlewares/error.middlewares.js";
 import userRoutes from "./routes/user.routes.js";
 import categoryRoutes from "./routes/category.routes.js";
@@ -21,25 +25,41 @@ import auctionSessionRoutes from "./routes/auctionSession.routes.js";
 import liveAuctionRoutes from "./routes/liveAuction.routes.js";
 
 const app = express();
-
 const server = http.createServer(app);
+
+const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: allowedOrigin,
     credentials: true,
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   },
 });
 
 const redisClient = redis.createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
+
 redisClient.on("error", (err) => logger.error("Redis Client Error", err));
-redisClient.connect().then(() => logger.info("Connected to Redis"));
+redisClient
+  .connect()
+  .then(() => logger.info("Connected to Redis"))
+  .catch((err) => {
+    logger.error("Redis connection failed", err);
+    process.exit(1); // stop process if Redis not connected
+  });
+
+// Make redis client accessible in requests if needed
+app.use((req, res, next) => {
+  req.redis = redisClient;
+  next();
+});
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigin,
     credentials: true,
   })
 );
@@ -92,19 +112,24 @@ io.use((socket, next) => {
   }
 });
 
-// Socket.io Auction Namespace
+
 const auctionNamespace = io.of("/auctions");
 auctionNamespace.on("connection", (socket) => {
   logger.info(`User ${socket.user._id} connected to auction namespace`);
 
   socket.on("joinSession", async ({ session_id }) => {
-    const session = await mongoose.model("AuctionSession").findById(session_id);
-    if (!session || session.status !== "active") {
-      socket.emit("error", { message: "Session not found or not active" });
-      return;
+    try {
+      const session = await mongoose.model("AuctionSession").findById(session_id);
+      if (!session || session.status !== "active") {
+        socket.emit("error", { message: "Session not found or not active" });
+        return;
+      }
+      socket.join(session_id);
+      logger.info(`User ${socket.user._id} joined session ${session_id}`);
+    } catch (err) {
+      logger.error("Error in joinSession event", err);
+      socket.emit("error", { message: "Internal server error" });
     }
-    socket.join(session_id);
-    logger.info(`User ${socket.user._id} joined session ${session_id}`);
   });
 
   socket.on("disconnect", () => {
@@ -114,4 +139,4 @@ auctionNamespace.on("connection", (socket) => {
 
 app.use(errorHandler);
 
-export { app, auctionNamespace,redisClient };
+export { app, auctionNamespace, redisClient, server };

@@ -16,9 +16,11 @@ const createAuction = async (auctionData) => {
     formData.append("auction_start_time", auctionData.auction_start_time);
     formData.append("auction_end_time", auctionData.auction_end_time);
     formData.append("is_invite_only", String(auctionData.is_invite_only));
+    
     if (auctionData.banner_image) {
       formData.append("banner_image", auctionData.banner_image);
     }
+
     formData.append("settings", JSON.stringify(auctionData.settings));
 
     console.log("createAuction: FormData entries:");
@@ -29,18 +31,33 @@ const createAuction = async (auctionData) => {
     const response = await apiClient.post("/auction", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+
     console.log("createAuction: Response:", response.data);
-    return response.data.data || response.data; // Fallback to response.data if .data is undefined
+
+    // ✅ Use proper conditional and throw if backend reports failure
+    const { data, success, message } = response.data;
+
+    if (!success) {
+      throw new Error(message || "Auction creation failed");
+    }
+
+    return data ?? {}; // always return something structured
   } catch (error) {
+    const errMsg =
+      error.response?.data?.message ||
+      error.message ||
+      "Failed to create auction";
+
     console.error("Create auction error:", {
-      message: error.message,
-      response: error.response,
+      message: errMsg,
       status: error.response?.status,
-      data: error.response?.data,
+      backend: error.response?.data,
     });
-    throw new Error(error.message || "Failed to create auction");
+
+    throw new Error(errMsg);
   }
 };
+
 
 /**
  * Get all auctions
@@ -92,7 +109,7 @@ const getAuctionSummary = async (auctionId) => {
  */
 const getAuctionPreview = async (auctionId) => {
   try {
-    const response = await apiClient.get(`/auction/${auctionId}/preview`);
+    const response = await apiClient.get(`/auction/preview/${auctionId}`);
     return response.data.data;
   } catch (error) {
     const message =
