@@ -9,7 +9,7 @@ const itemSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["available", "sold", "pending_approval", "rejected"],
+      enum: ["available", "sold", "pending_approval","in_auction", "rejected"],
       default: "pending_approval",
     },
     approval_reason: {

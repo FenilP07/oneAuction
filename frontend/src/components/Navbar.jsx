@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom'; // Import NavLink
+import { NavLink, useNavigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -22,12 +22,15 @@ function Navbar() {
 		}
 	};
 
+	const navLinkClass = ({ isActive }) => `nav-link fw-bold ${isActive ? 'active' : ''}`;
+	const dropdownItemClass = ({ isActive }) => `dropdown-item ${isActive ? 'active' : ''}`;
+
 	return (
 		<nav className="navbar navbar-expand-lg bgOne navbar-dark" aria-label="Main navigation">
 			<div className="container-fluid">
-				<Link className="navbar-brand" to="/home" aria-label="OneAuction Home">
+				<NavLink className="navbar-brand" to="/home" aria-label="OneAuction Home">
 					<img src="/images/AuctionLogo.png" alt="OneAuction Logo" height="32" />
-				</Link>
+				</NavLink>
 
 				<button
 					className="navbar-toggler"
@@ -45,28 +48,18 @@ function Navbar() {
 					{/* Left Nav Items */}
 					<ul className="navbar-nav me-auto">
 						<li className="nav-item">
-							<NavLink className="nav-link fw-bold" to="/home" activeClassName="active">
-								Home
-							</NavLink>
+							<NavLink to="/home" className={navLinkClass}>Home</NavLink>
 						</li>
 						<li className="nav-item">
-							<NavLink className="nav-link fw-bold" to="/aboutUs" activeClassName="active">
-								About Us
-							</NavLink>
+							<NavLink to="/aboutUs" className={navLinkClass}>About Us</NavLink>
 						</li>
 						<li className="nav-item">
-							<NavLink className="nav-link fw-bold" to="/browseAuctions" activeClassName="active">
-								Auctions
-							</NavLink>
+							<NavLink to="/browseAuctions" className={navLinkClass}>Auctions</NavLink>
 						</li>
 						{user && (
-							<>
-								<li className="nav-item">
-									<NavLink className="nav-link fw-bold" to="/dashboard" activeClassName="active">
-										Dashboard
-									</NavLink>
-								</li>
-							</>
+							<li className="nav-item">
+								<NavLink to="/dashboard" className={navLinkClass}>Dashboard</NavLink>
+							</li>
 						)}
 					</ul>
 
@@ -74,9 +67,7 @@ function Navbar() {
 					<ul className="navbar-nav ms-auto">
 						{!user ? (
 							<li className="nav-item">
-								<NavLink className="nav-link fw-bold" to="/login" activeClassName="active">
-									Login
-								</NavLink>
+								<NavLink to="/login" className={navLinkClass}>Login</NavLink>
 							</li>
 						) : (
 							<li className="nav-item dropdown">
@@ -104,21 +95,19 @@ function Navbar() {
 								</a>
 								<ul className="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
 									<li>
-										<Link className="dropdown-item" to="/profile">
-											Profile
-										</Link>
+										<NavLink to="/profile" className={dropdownItemClass}>Profile</NavLink>
 									</li>
+									{user?.role === 'admin' && (
 
-									   {user?.role === 'admin' && (
-										<li>
 										<Link className="dropdown-item" to="/admin/dashboard">
 											Admin
 										</Link>
+
+											<NavLink to="/admin" className={dropdownItemClass}>Admin</NavLink>
+
 										</li>
 									)}
-									<li>
-										<hr className="dropdown-divider" />
-									</li>
+									<li><hr className="dropdown-divider" /></li>
 									<li>
 										<button className="dropdown-item" onClick={handleLogout} aria-label="Log out">
 											Logout

@@ -4,6 +4,7 @@ import {
   updateItem,
   getAllItems,
   getMyItems,
+  getMyAvailableItems,
 } from "../controllers/item.controllers.js";
 import { authenticatedMiddleware } from "../middlewares/auth.middlewares.js";
 import {
@@ -24,6 +25,7 @@ router.post(
 router.put("/:id", authenticatedMiddleware, updateItem);
 router.get("/my-items", authenticatedMiddleware, getMyItems);
 router.get("/all", getAllItems);
+router.get("/my-available-items", authenticatedMiddleware, getMyAvailableItems);
 
 router.get("/:id", authenticatedMiddleware, getItemById);
 router.post("/:id/approve", authenticatedMiddleware, approveItem);

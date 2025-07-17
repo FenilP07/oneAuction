@@ -1,392 +1,701 @@
-import React, { useState, useEffect } from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
+import React, { useState, useEffect, useCallback } from "react";
+import { Modal, Button, Form, Alert, Spinner, Card, Badge, OverlayTrigger, Tooltip } from "react-bootstrap";
+import getAllAuctionTypes from "../services/auctioTypeService";
+import { getMyAvailableItems } from "../services/itemService";
+import { createAuction } from "../services/auctionService";
 
 const AuctionModal = ({ onAuctionCreate }) => {
-    const [showModal, setShowModal] = useState(false);
-    const [auctionType, setAuctionType] = useState(null);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [auctionData, setAuctionData] = useState({
-        startDate: '',
-        startTime: '',
-        timePeriod: '',
-        agreement: false,
-        items: [],
-        sequence: [],
+  const [showModal, setShowModal] = useState(false);
+  const [auctionTypes, setAuctionTypes] = useState([]);
+  const [selectedAuctionType, setSelectedAuctionType] = useState(null);
+  const [itemsData, setItemsData] = useState({
+    items: [],
+    totalItems: 0,
+    currentPage: 1,
+    totalPages: 1,
+  });
+  const [auctionData, setAuctionData] = useState({
+    auction_title: "",
+    auction_description: "",
+    startDate: "",
+    startTime: "",
+    timePeriod: "",
+    agreement: false,
+    items: [],
+    sequence: [],
+    banner_image: null,
+    is_invite_only: false,
+  });
+  const [bannerPreview, setBannerPreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [error, setError] = useState(null);
+  const itemsPerPage = 10;
+
+  const now = new Date();
+  const currentDate = now.toISOString().split("T")[0];
+  const currentTime = now
+    .toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+    .slice(0, 5);
+
+  useEffect(() => {
+    setAuctionData((prev) => ({
+      ...prev,
+      startDate: currentDate,
+      startTime: currentTime,
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      getAllAuctionTypes()
+        .then((types) => {
+          setAuctionTypes(types);
+          setError(null);
+        })
+        .catch((err) => setError(err.message));
+    }
+  }, [showModal]);
+
+  useEffect(() => {
+    if (selectedAuctionType) {
+      fetchItems(1);
+    }
+  }, [selectedAuctionType]);
+
+  const fetchItems = useCallback(async (page = 1) => {
+    setLoadingItems(true);
+    setError(null);
+    try {
+      const data = await getMyAvailableItems({ page, limit: itemsPerPage });
+      setItemsData(data);
+    } catch (err) {
+      setError(err.message || "Failed to fetch items");
+    } finally {
+      setLoadingItems(false);
+    }
+  }, []);
+
+  const handleItemSelect = useCallback((item) => {
+    setAuctionData((prev) => {
+      const typeName = selectedAuctionType.type_name;
+      if (typeName === "live") {
+        const isSelected = prev.items.includes(item._id);
+        const updatedItems = isSelected
+          ? prev.items.filter((id) => id !== item._id)
+          : [...prev.items, item._id];
+        const updatedSequence = isSelected
+          ? prev.sequence.filter((_, i) => prev.items[i] !== item._id)
+          : [...prev.sequence, prev.items.length + 1];
+        return { ...prev, items: updatedItems, sequence: updatedSequence };
+      } else {
+        return { ...prev, items: prev.items.includes(item._id) ? [] : [item._id], sequence: [] };
+      }
     });
-    const [items] = useState([
-        { id: 1, itemName: 'Gold Watch', photo: 'https://picsum.photos/200/200?random=1', baseBid: '400.00', description: 'Luxury gold watch with leather strap' },
-        { id: 2, itemName: 'Oil Painting', photo: 'https://picsum.photos/200/200?random=2', baseBid: '300.00', description: 'Classic landscape oil painting' },
-        { id: 3, itemName: 'Vintage Coin', photo: 'https://picsum.photos/200/200?random=3', baseBid: '150.00', description: 'Rare 19th-century coin collection' },
-    ]);
+    setError(null);
+  }, [selectedAuctionType]);
 
-    const currentDate = new Date().toISOString().split('T')[0]; // 2025-07-02
-    const currentTime = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }).slice(0, 5); // 18:18
+  const handleSequenceChange = useCallback((itemId, direction) => {
+    setAuctionData((prev) => {
+      const index = prev.items.indexOf(itemId);
+      if (index === -1) return prev;
+      const newSequence = [...prev.sequence];
+      const newItems = [...prev.items];
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
 
-    const handleAuctionCreate = (data) => {
-        onAuctionCreate(data);
-        setShowModal(false);
-        setAuctionType(null);
-        setSelectedItem(null);
-        setAuctionData({ startDate: '', startTime: '', agreement: false, items: [], sequence: [] });
+      if (targetIndex >= 0 && targetIndex < newItems.length) {
+        [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
+        newSequence[index] = index + 1;
+        newSequence[targetIndex] = targetIndex + 1;
+      }
+
+      return { ...prev, items: newItems, sequence: newSequence };
+    });
+  }, []);
+
+  const handleInputChange = useCallback((e) => {
+    const { name, value, type, checked } = e.target;
+    setAuctionData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+    setError(null);
+  }, []);
+
+  const handleBannerChange = useCallback((e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Banner image must be less than 5MB");
+        return;
+      }
+      setAuctionData((prev) => ({ ...prev, banner_image: file }));
+      setBannerPreview(URL.createObjectURL(file));
+    }
+  }, []);
+
+  const validateForm = useCallback(() => {
+    if (!auctionData.auction_title.trim()) return "Auction title is required";
+    if (auctionData.auction_title.length > 100) return "Auction title must be 100 characters or less";
+    if (auctionData.auction_description.length > 500) return "Description must be 500 characters or less";
+    if (!auctionData.startDate) return "Start date is required";
+    if (!auctionData.startTime) return "Start time is required";
+    const startDateTime = new Date(`${auctionData.startDate}T${auctionData.startTime}`);
+    if (startDateTime < now) return "Start time must be in the future";
+    if (!auctionData.timePeriod || auctionData.timePeriod <= 0) return "Duration must be a positive number";
+    if (auctionData.timePeriod > 1440) return "Duration cannot exceed 24 hours";
+    if (!auctionData.agreement) return "You must agree to the terms and conditions";
+    if (auctionData.items.length === 0) return "At least one item is required";
+    if (selectedAuctionType.type_name === "live" && auctionData.items.length < 3) {
+      return "Live auctions require at least three items";
+    }
+    if (
+      (selectedAuctionType.type_name === "single_timed_item" || selectedAuctionType.type_name === "sealed_bid") &&
+      auctionData.items.length > 1
+    ) {
+      return "Timed and sealed bid auctions can only have one item";
+    }
+    return null;
+  }, [auctionData, selectedAuctionType]);
+
+  const submitAuction = useCallback(async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const {
+      startDate,
+      startTime,
+      timePeriod,
+      items,
+      auction_title,
+      auction_description,
+      banner_image,
+      is_invite_only,
+    } = auctionData;
+
+    const auction_start_time = new Date(`${startDate}T${startTime}`).toISOString();
+    const auction_end_time = new Date(
+      new Date(`${startDate}T${startTime}`).getTime() + timePeriod * 60000
+    ).toISOString();
+
+    const payload = {
+      auctionType_id: selectedAuctionType._id,
+      auction_title: auction_title.trim(),
+      auction_description: auction_description.trim(),
+      auction_start_time,
+      auction_end_time,
+      is_invite_only,
+      banner_image,
+      settings:
+        selectedAuctionType.type_name === "live"
+          ? { item_ids: items }
+          : { item_id: items[0] },
     };
 
-    const handleItemSelect = (item) => {
-        setAuctionData((prev) => {
-            const itemIndex = prev.items.indexOf(item.id);
-            if (itemIndex > -1) {
-                const newItems = prev.items.filter((id) => id !== item.id);
-                const newSequence = prev.sequence.filter((_, idx) => prev.items[idx] !== item.id);
-                return { ...prev, items: newItems, sequence: newSequence };
-            } else {
-                return { ...prev, items: [...prev.items, item.id], sequence: [...prev.sequence, prev.sequence.length + 1] };
-            }
-        });
-    };
+    try {
+      const created = await createAuction(payload);
+      console.log('submitAuction: Created auction:', created);
+      onAuctionCreate(created);
+      setShowModal(false);
+    } catch (err) {
+      console.error('submitAuction: Error:', err);
+      setError(err.message || "Failed to create auction");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [auctionData, selectedAuctionType, onAuctionCreate]);
 
-    const handleInputChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setAuctionData((prev) => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value,
-        }));
-    };
+  const resetModal = useCallback(() => {
+    setShowModal(false);
+    setSelectedAuctionType(null);
+    setItemsData({ items: [], totalItems: 0, currentPage: 1, totalPages: 1 });
+    setAuctionData({
+      auction_title: "",
+      auction_description: "",
+      startDate: currentDate,
+      startTime: currentTime,
+      timePeriod: "",
+      agreement: false,
+      items: [],
+      sequence: [],
+      banner_image: null,
+      is_invite_only: false,
+    });
+    setBannerPreview(null);
+    setError(null);
+  }, [currentDate, currentTime]);
 
-    const handleSequenceChange = (index, value) => {
-        const newSequence = [...auctionData.sequence];
-        newSequence[index] = parseInt(value) || 1;
-        setAuctionData((prev) => ({ ...prev, sequence: newSequence }));
-    };
+  const handlePageChange = useCallback((newPage) => {
+    if (newPage >= 1 && newPage <= itemsData.totalPages) {
+      fetchItems(newPage);
+    }
+  }, [itemsData.totalPages, fetchItems]);
 
-    // Sort items based on sequence
-    const getOrderedItems = () => {
-        if (auctionData.items.length === 0) return [];
-        const itemMap = auctionData.items.map((id, idx) => ({ id, seq: auctionData.sequence[idx] || (idx + 1) }));
-        return itemMap
-            .sort((a, b) => a.seq - b.seq)
-            .map(sorted => items.find(item => item.id === sorted.id));
-    };
+  return (
+    <>
+      <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
+        <i className="bi bi-plus me-1"></i>Create Auction
+      </Button>
 
-    // Validate sequence numbers
-    const validateSequence = () => {
-        const numItems = auctionData.items.length;
-        if (numItems === 0) return true;
-        const sequenceSet = new Set(auctionData.sequence);
-        const expectedSequence = Array.from({ length: numItems }, (_, i) => i + 1);
-        return sequenceSet.size === numItems && auctionData.sequence.every(seq => expectedSequence.includes(seq));
-    };
+      <Modal
+        show={showModal}
+        onHide={resetModal}
+        size="lg"
+        aria-labelledby="auctionModalLabel"
+        centered
+        backdrop="static"
+        keyboard={!isSubmitting}
+      >
+        <Modal.Header closeButton className="bg-primary text-white py-2">
+          <Modal.Title id="auctionModalLabel" className="fs-6">
+            <i className="bi bi-hammer me-1"></i>Create Auction
+          </Modal.Title>
+        </Modal.Header>
 
-    useEffect(() => {
-        if (showModal) {
-            const modal = document.querySelector('.modal');
-            modal.classList.add('show');
-            modal.style.display = 'block';
-            document.body.classList.add('modal-open');
-            const backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop fade show';
-            document.body.appendChild(backdrop);
-            return () => {
-                modal.classList.remove('show');
-                modal.style.display = 'none';
-                document.body.classList.remove('modal-open');
-                document.body.removeChild(backdrop);
-            };
-        }
-    }, [showModal]);
+        <Modal.Body className="p-3">
+          {error && (
+            <Alert
+              variant="danger"
+              className="py-2 px-3 mb-3"
+              dismissible
+              onClose={() => setError(null)}
+            >
+              {error}
+            </Alert>
+          )}
 
-    return (
-        <>
-            <div className="d-flex justify-content-end mb-3">
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                    Create Your Auction
-                </button>
-            </div>
-            <div className="modal fade" tabIndex="-1" role="dialog">
-                <div className="modal-dialog modal-lg" role="document">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title">Create Auction</h5>
-                            <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
-                        </div>
-                        <div className="modal-body">
-                            {!auctionType ? (
-                                <div className="text-center">
-                                    <p>Select Auction Type</p>
-                                    <div className="d-flex justify-content-center gap-3">
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Time-Based')}
-                                        >
-                                            Time-Based Auction
-                                        </button>
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Live')}
-                                        >
-                                            Live Auction
-                                        </button>
-                                        <button
-                                            className="btn btn-outline-primary"
-                                            onClick={() => setAuctionType('Sealed Bid')}
-                                        >
-                                            Sealed Bid Auction
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : !selectedItem ? (
-                                <>
-                                <div className="row row-cols-1 row-cols-md-3 g-4">
-                                    {auctionType === 'Live' ? (
-                                        items.map((item) => (
-                                            <div className="col" key={item.id}>
-                                                <div className="card h-100">
-                                                    <img src={item.photo} className="card-img-top" alt={item.itemName} style={{ height: '200px', objectFit: 'cover' }} />
-                                                    <div className="card-body">
-                                                        <h5 className="card-title">{item.itemName}</h5>
-                                                        <p className="card-text">Base Price: ${item.baseBid}</p>
-                                                        <button
-                                                            className={`btn ${auctionData.items.includes(item.id) ? 'btn-success' : 'btn-primary'}`}
-                                                            onClick={() => handleItemSelect(item)}
-                                                        >
-                                                            {auctionData.items.includes(item.id) ? 'Selected' : 'Select'}
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        items.map((item) => (
-                                            <div className="col" key={item.id}>
-                                                <div className="card h-100">
-                                                    <img src={item.photo} className="card-img-top" alt={item.itemName} style={{ height: '200px', objectFit: 'cover' }} />
-                                                    <div className="card-body">
-                                                        <h5 className="card-title">{item.itemName}</h5>
-                                                        <p className="card-text">Base Price: ${item.baseBid}</p>
-                                                        <button className="btn btn-primary" onClick={() => setSelectedItem(item)}>
-                                                            Select
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                    
-                                </div>
-                                <div className='row justify-content-end'>
-                                    <div className="text-end mt-3">
-                                        <button
-                                            className="btn btn-primary"
-                                            onClick={() => {
-                                                if (auctionType === 'Live' && auctionData.items.length >= 3) {
-                                                    const selectedItems = auctionData.items.map(id => items.find(i => i.id === id));
-                                                    setSelectedItem({ id: 'multiple', itemNames: selectedItems.map(i => i.itemName).join(', '), items: selectedItems });
-                                                } else if (auctionType !== 'Live' && selectedItem) {
-                                                    setSelectedItem(selectedItem);
-                                                }
-                                            }}
-                                            disabled={auctionType === 'Live' ? auctionData.items.length < 3 : !selectedItem}
-                                        >
-                                            {auctionType === 'Live' ? 'Next' : 'Select'}
-                                        </button>
-                                    </div>
-                                </div>
-                                </>
-                            ) : (
-                                <div className="card">
-                                    <div className="card-body">
-                                        <h4 className="card-title">Create {auctionType} Auction</h4>
-                                        <form onSubmit={(e) => {
-                                            e.preventDefault();
-                                            if (auctionType === 'Live' && !validateSequence()) {
-                                                alert('Please ensure each item has a unique sequence number from 1 to ' + auctionData.items.length + '.');
-                                                return;
-                                            }
-                                            handleAuctionCreate(auctionData);
-                                        }}>
-                                            <div className="row g-3">
-                                                {auctionType === 'Live' && selectedItem.id === 'multiple' && (
-                                                    <div className="col-12">
-                                                        {getOrderedItems().map((item, index) => (
-                                                            <div key={item.id} className="d-flex align-items-center mb-2">
-                                                                <img src={item.photo} alt={item.itemName} style={{ width: '100px', height: '100px', objectFit: 'cover', marginRight: '10px' }} />
-                                                                <span>{item.itemName} - ${item.baseBid} (Seq: </span>
-                                                                <input
-                                                                    type="number"
-                                                                    className="form-control form-control-sm"
-                                                                    style={{ width: '60px', display: 'inline-block', margin: '0 5px' }}
-                                                                    value={auctionData.sequence[index] || (index + 1)}
-                                                                    onChange={(e) => handleSequenceChange(index, e.target.value)}
-                                                                    min="1"
-                                                                    max={auctionData.items.length}
-                                                                />
-                                                                <span>)</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {auctionType !== 'Live' && selectedItem && (
-                                                    <>
-                                                        <div className="col-12">
-                                                            <img src={selectedItem.photo} className="img-fluid mb-2" alt={selectedItem.itemName} style={{ maxHeight: '200px', objectFit: 'cover' }} />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Item Name:</strong> {selectedItem.itemName}</p>
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Description:</strong> {selectedItem.description}</p>
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p><strong>Base Price:</strong> ${selectedItem.baseBid}</p>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Time-Based' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="endDate" class="form-label">End Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="endDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="endTime" class="form-label">End Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="endTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Live' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="startDate" class="form-label">Start Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="startDate"
-                                                                id="startDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="startTime" class="form-label">Start Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="startTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <p className="text-danger">
-                                                                Caution: This is a live auction. If only one person bids, it will close automatically 1 minute after the last bid, and you are obligated to sell.
-                                                            </p>
-                                                            <div className="form-check">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="form-check-input"
-                                                                    name="agreement"
-                                                                    id="liveBaseAgreement"
-                                                                    checked={auctionData.agreement}
-                                                                    onChange={handleInputChange}
-                                                                    required
-                                                                />
-                                                                <label className="form-check-label" for="liveBaseAgreement">I agree to the terms</label>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                {auctionType === 'Sealed Bid' && (
-                                                    <>
-                                                        <div className="col-md-6">
-                                                            <label for="endDate" class="form-label">End Date:</label>
-                                                            <input
-                                                                type="date"
-                                                                className="form-control"
-                                                                name="endDate"
-                                                                value={auctionData.startDate}
-                                                                onChange={handleInputChange}
-                                                                min={currentDate}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-md-6">
-                                                            <label for="endTime" class="form-label">End Time:</label>
-                                                            <input
-                                                                type="time"
-                                                                className="form-control"
-                                                                name="endTime"
-                                                                value={auctionData.startTime}
-                                                                onChange={handleInputChange}
-                                                                min={auctionData.startDate === currentDate ? currentTime : '00:00'}
-                                                                required
-                                                            />
-                                                        </div>
-                                                        <div className="col-12">
-                                                            <div className="form-check">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="form-check-input"
-                                                                    name="agreement"
-                                                                    checked={auctionData.agreement}
-                                                                    onChange={handleInputChange}
-                                                                    required
-                                                                />
-                                                                <label className="form-check-label">
-                                                                    I agree that users can only see base price and bid blindly; the highest bidder wins.
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                <div className="col-12 text-end">
-                                                    <button type="submit" className="btn btn-success" disabled={auctionType !== 'Time-Based' && !auctionData.agreement}>
-                                                        Create Auction
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div className="modal-footer">
-                            {selectedItem && (
-                                <button type="button" className="btn btn-secondary" onClick={() => setSelectedItem(null)}>
-                                    Back to Items
-                                </button>
-                            )}
-                            {auctionType && !selectedItem && (
-                                <button type="button" className="btn btn-secondary" onClick={() => setAuctionType(null)}>
-                                    Back to Types
-                                </button>
-                            )}
-                            <button type="button" className="btn btn-danger" onClick={() => setShowModal(false)}>
-                                Close
-                            </button>
-                        </div>
-                    </div>
+          {!selectedAuctionType ? (
+            <div className="text-center py-3">
+              <h6 className="mb-3">Select Auction Type</h6>
+              {auctionTypes.length === 0 ? (
+                <Alert variant="info" className="py-2 px-3">
+                  No auction types available
+                </Alert>
+              ) : (
+                <div className="d-flex flex-wrap justify-content-center gap-2">
+                  {auctionTypes.map((type) => (
+                    <Button
+                      key={type._id}
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => setSelectedAuctionType(type)}
+                      className="text-capitalize"
+                    >
+                      {type.type_name === "live" && <i className="bi bi-lightning me-1"></i>}
+                      {type.type_name === "single_timed_item" && <i className="bi bi-clock me-1"></i>}
+                      {type.type_name === "sealed_bid" && <i className="bi bi-lock me-1"></i>}
+                      {type.type_name === "live" ? "Live" : type.type_name === "single_timed_item" ? "Timed" : "Sealed Bid"}
+                    </Button>
+                  ))}
                 </div>
+              )}
             </div>
-        </>
-    );
+          ) : (
+            <Form onSubmit={(e) => { e.preventDefault(); submitAuction(); }}>
+              <div className="row g-3">
+                <div className="col-md-8">
+                  <div className="d-flex align-items-center mb-2">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      className="me-2"
+                      onClick={() => setSelectedAuctionType(null)}
+                      aria-label="Back to auction type selection"
+                    >
+                      <i className="bi bi-arrow-left"></i>
+                    </Button>
+                    <h6 className="m-0 text-capitalize">
+                      {selectedAuctionType.type_name === "live"
+                        ? "Live"
+                        : selectedAuctionType.type_name === "single_timed_item"
+                        ? "Timed"
+                        : "Sealed Bid"} Auction
+                    </h6>
+                  </div>
+
+                  <Card className="shadow-sm">
+                    <Card.Body className="p-3">
+                      <h6 className="mb-2 fs-6">
+                        Select Items
+                        {selectedAuctionType.type_name === "live" && (
+                          <OverlayTrigger
+                            placement="top"
+                            overlay={
+                              <Tooltip id="items-tooltip">
+                                Select at least 3 items for live auctions
+                              </Tooltip>
+                            }
+                          >
+                            <i className="bi bi-info-circle ms-1"></i>
+                          </OverlayTrigger>
+                        )}
+                      </h6>
+                      {loadingItems ? (
+                        <div className="text-center py-3">
+                          <Spinner animation="border" variant="primary" />
+                        </div>
+                      ) : itemsData.items.length === 0 ? (
+                        <Alert variant="info" className="py-2 px-3">
+                          No available items. Please add items first.
+                        </Alert>
+                      ) : (
+                        <>
+                          <div className="row row-cols-2 row-cols-md-3 g-2">
+                            {itemsData.items.map((item) => (
+                              <div className="col" key={item._id}>
+                                <Card
+                                  className={`h-100 ${
+                                    auctionData.items.includes(item._id) ? "border-success" : ""
+                                  }`}
+                                  style={{ cursor: "pointer" }}
+                                  onClick={() => handleItemSelect(item)}
+                                  role="button"
+                                  aria-pressed={auctionData.items.includes(item._id)}
+                                >
+                                  <Card.Img
+                                    variant="top"
+                                    src={
+                                      item.images?.find((img) => img.is_primary)?.image_url ||
+                                      item.images?.[0]?.image_url ||
+                                      "https://via.placeholder.com/150x100?text=No+Image"
+                                    }
+                                    style={{ height: "100px", objectFit: "cover" }}
+                                    alt={item.name}
+                                  />
+                                  <Card.Body className="p-2">
+                                    <Card.Title className="fs-6 mb-0 text-truncate">
+                                      {item.name}
+                                    </Card.Title>
+                                  </Card.Body>
+                                  <Card.Footer className="p-1 bg-transparent">
+                                    <Button
+                                      variant={
+                                        auctionData.items.includes(item._id)
+                                          ? "success"
+                                          : "outline-primary"
+                                      }
+                                      size="sm"
+                                      className="w-100"
+                                    >
+                                      {auctionData.items.includes(item._id) ? "✓ Selected" : "Select"}
+                                    </Button>
+                                  </Card.Footer>
+                                </Card>
+                              </div>
+                            ))}
+                          </div>
+                          {itemsData.totalPages > 1 && (
+                            <nav aria-label="Items pagination" className="mt-3">
+                              <ul className="pagination pagination-sm justify-content-center mb-0">
+                                <li className={`page-item ${itemsData.currentPage === 1 ? "disabled" : ""}`}>
+                                  <Button
+                                    variant="link"
+                                    className="page-link"
+                                    onClick={() => handlePageChange(itemsData.currentPage - 1)}
+                                    disabled={itemsData.currentPage === 1}
+                                    aria-label="Previous page"
+                                  >
+                                    Previous
+                                  </Button>
+                                </li>
+                                {[...Array(itemsData.totalPages).keys()].map((page) => (
+                                  <li
+                                    key={page + 1}
+                                    className={`page-item ${itemsData.currentPage === page + 1 ? "active" : ""}`}
+                                  >
+                                    <Button
+                                      variant="link"
+                                      className="page-link"
+                                      onClick={() => handlePageChange(page + 1)}
+                                    >
+                                      {page + 1}
+                                    </Button>
+                                  </li>
+                                ))}
+                                <li
+                                  className={`page-item ${
+                                    itemsData.currentPage === itemsData.totalPages ? "disabled" : ""
+                                  }`}
+                                >
+                                  <Button
+                                    variant="link"
+                                    className="page-link"
+                                    onClick={() => handlePageChange(itemsData.currentPage + 1)}
+                                    disabled={itemsData.currentPage === itemsData.totalPages}
+                                    aria-label="Next page"
+                                  >
+                                    Next
+                                  </Button>
+                                </li>
+                              </ul>
+                            </nav>
+                          )}
+                        </>
+                      )}
+                    </Card.Body>
+                  </Card>
+
+                  {selectedAuctionType.type_name === "live" && auctionData.items.length > 0 && (
+                    <Card className="shadow-sm mt-3">
+                      <Card.Body className="p-3">
+                        <h6 className="mb-2 fs-6">Item Sequence</h6>
+                        <ul className="list-group list-group-flush">
+                          {auctionData.items.map((itemId, index) => {
+                            const item = itemsData.items.find((i) => i._id === itemId);
+                            return (
+                              <li
+                                key={itemId}
+                                className="list-group-item d-flex align-items-center p-2"
+                              >
+                                <Badge bg="secondary" className="me-2">
+                                  {index + 1}
+                                </Badge>
+                                <span className="flex-grow-1 text-truncate">
+                                  {item?.name || "Unknown Item"}
+                                </span>
+                                <div>
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    className="me-1"
+                                    onClick={() => handleSequenceChange(itemId, "up")}
+                                    disabled={index === 0}
+                                    aria-label={`Move ${item?.name} up`}
+                                  >
+                                    <i className="bi bi-arrow-up"></i>
+                                  </Button>
+                                  <Button
+                                    variant="outline-primary"
+                                    size="sm"
+                                    onClick={() => handleSequenceChange(itemId, "down")}
+                                    disabled={index === auctionData.items.length - 1}
+                                    aria-label={`Move ${item?.name} down`}
+                                  >
+                                    <i className="bi bi-arrow-down"></i>
+                                  </Button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </Card.Body>
+                    </Card>
+                  )}
+                </div>
+
+                <div className="col-md-4">
+                  <Card className="shadow-sm">
+                    <Card.Header className="p-2 bg-light">
+                      <h6 className="m-0 fs-6">Auction Details</h6>
+                    </Card.Header>
+                    <Card.Body className="p-3">
+                      <Form.Group className="mb-2" controlId="auction_title">
+                        <Form.Label className="mb-0 fs-6">Title*</Form.Label>
+                        <Form.Control
+                          type="text"
+                          name="auction_title"
+                          value={auctionData.auction_title}
+                          onChange={handleInputChange}
+                          size="sm"
+                          required
+                          maxLength={100}
+                          placeholder="Enter auction title"
+                          aria-describedby="auction_title_help"
+                        />
+                        <Form.Text id="auction_title_help" muted>
+                          Max 100 characters
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="auction_description">
+                        <Form.Label className="mb-0 fs-6">Description</Form.Label>
+                        <Form.Control
+                          as="textarea"
+                          name="auction_description"
+                          value={auctionData.auction_description}
+                          onChange={handleInputChange}
+                          size="sm"
+                          rows={3}
+                          maxLength={500}
+                          placeholder="Describe your auction"
+                          aria-describedby="auction_description_help"
+                        />
+                        <Form.Text id="auction_description_help" muted>
+                          Max 500 characters
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="banner_image">
+                        <Form.Label className="mb-0 fs-6">Banner Image</Form.Label>
+                        <Form.Control
+                          type="file"
+                          name="banner_image"
+                          size="sm"
+                          accept="image/*"
+                          onChange={handleBannerChange}
+                          aria-describedby="banner_image_help"
+                        />
+                        <Form.Text id="banner_image_help" muted>
+                          Optional, max 5MB
+                        </Form.Text>
+                        {bannerPreview && (
+                          <img
+                            src={bannerPreview}
+                            alt="Banner Preview"
+                            className="img-fluid rounded mt-2"
+                            style={{ maxHeight: "100px" }}
+                          />
+                        )}
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="startDate">
+                        <Form.Label className="mb-0 fs-6">Start Date*</Form.Label>
+                        <Form.Control
+                          type="date"
+                          name="startDate"
+                          value={auctionData.startDate}
+                          min={currentDate}
+                          onChange={handleInputChange}
+                          size="sm"
+                          required
+                        />
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="startTime">
+                        <Form.Label className="mb-0 fs-6">Start Time*</Form.Label>
+                        <Form.Control
+                          type="time"
+                          name="startTime"
+                          value={auctionData.startTime}
+                          min={auctionData.startDate === currentDate ? currentTime : "00:00"}
+                          onChange={handleInputChange}
+                          size="sm"
+                          required
+                        />
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="timePeriod">
+                        <Form.Label className="mb-0 fs-6">Duration (min)*</Form.Label>
+                        <Form.Control
+                          type="number"
+                          name="timePeriod"
+                          value={auctionData.timePeriod}
+                          onChange={handleInputChange}
+                          size="sm"
+                          min="1"
+                          max="1440"
+                          required
+                          placeholder="e.g., 60"
+                          aria-describedby="timePeriod_help"
+                        />
+                        <Form.Text id="timePeriod_help" muted>
+                          Max 24 hours (1440 minutes)
+                        </Form.Text>
+                      </Form.Group>
+
+                      <Form.Group className="mb-2" controlId="is_invite_only">
+                        <Form.Check
+                          type="checkbox"
+                          label="Invite-only auction"
+                          name="is_invite_only"
+                          checked={auctionData.is_invite_only}
+                          onChange={handleInputChange}
+                          id="is_invite_only"
+                        />
+                      </Form.Group>
+
+                      <Form.Group
+                        className={`mb-2 ${error === "You must agree to the terms and conditions" ? "text-danger" : ""}`}
+                        controlId="agreementCheck"
+                      >
+                        <Form.Check
+                          type="checkbox"
+                          label="I agree to the auction terms and conditions"
+                          name="agreement"
+                          checked={auctionData.agreement}
+                          onChange={handleInputChange}
+                          required
+                          id="agreementCheck"
+                          aria-describedby="agreement_help"
+                        />
+                        {error === "You must agree to the terms and conditions" && (
+                          <Form.Text id="agreement_help" className="text-danger">
+                            Please check this box to proceed
+                          </Form.Text>
+                        )}
+                      </Form.Group>
+                    </Card.Body>
+                  </Card>
+                </div>
+              </div>
+            </Form>
+          )}
+        </Modal.Body>
+
+        <Modal.Footer className="p-2">
+          <Button
+            variant="outline-danger"
+            size="sm"
+            onClick={resetModal}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          {selectedAuctionType && auctionData.items.length > 0 && (
+            <OverlayTrigger
+              placement="top"
+              overlay={
+                !auctionData.agreement ? (
+                  <Tooltip id="create-auction-tooltip">
+                    Please agree to the terms and conditions
+                  </Tooltip>
+                ) : auctionData.items.length < 3 && selectedAuctionType.type_name === "live" ? (
+                  <Tooltip id="create-auction-tooltip">
+                    Please select at least 3 items for live auctions
+                  </Tooltip>
+                ) : (
+                  <Tooltip id="create-auction-tooltip">Create the auction</Tooltip>
+                )
+              }
+            >
+              <span>
+                <Button
+                  variant="success"
+                  size="sm"
+                  onClick={submitAuction}
+                  disabled={
+                    isSubmitting ||
+                    !auctionData.agreement ||
+                    (selectedAuctionType.type_name === "live" && auctionData.items.length < 3)
+                  }
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Spinner
+                        animation="border"
+                        size="sm"
+                        className="me-1"
+                        aria-hidden="true"
+                      />
+                      Creating
+                    </>
+                  ) : (
+                    "Create Auction"
+                  )}
+                </Button>
+              </span>
+            </OverlayTrigger>
+          )}
+        </Modal.Footer>
+      </Modal>
+    </>
+  );
 };
 
 export default AuctionModal;
