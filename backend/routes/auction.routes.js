@@ -16,6 +16,7 @@ const router = Router();
 
 router.post("/", authenticatedMiddleware,upload.single("banner_image"), createAuction);
 router.get("/my-auctions",authenticatedMiddleware,getMyAuctions)
+
 router.get("/preview/:auction_id", getAuctionPreview);
 router.get("/leaderboard/:auction_id",getAuctionLeaderboard);
 router.get("/summary/:auction_id",getAuctionSummary)
