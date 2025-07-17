@@ -10,7 +10,6 @@ const bidSchema = new Schema(
     session_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "AuctionSession",
-      required: true,
     },
     item_id: {
       type: mongoose.Schema.Types.ObjectId,
@@ -22,10 +21,14 @@ const bidSchema = new Schema(
       ref: "User",
       required: true,
     },
+
     amount: {
       type: Number,
-      required: true,
       min: 0,
+    },
+
+    encrypted_amount: {
+      type: String,
     },
     is_winner: {
       type: Boolean,
@@ -38,6 +41,8 @@ const bidSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Indexes for faster queries
 bidSchema.index({ auction_id: 1, item_id: 1 });
 bidSchema.index({ bidder_id: 1 });
 bidSchema.index({ item_id: 1, amount: -1 });
