@@ -111,7 +111,7 @@ function Navbar() {
 
 									   {user?.role === 'admin' && (
 										<li>
-										<Link className="dropdown-item" to="/admin">
+										<Link className="dropdown-item" to="/admin/dashboard">
 											Admin
 										</Link>
 										</li>

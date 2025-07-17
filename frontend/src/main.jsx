@@ -23,6 +23,7 @@ import BrowseAuctions from  "./pages/BrowseAuctions/BrowseAuctions.jsx";
 import TimeBasedAuction from  "./pages/JoinAuction/TimeBasedAuction.jsx";
 import SealedBasedAuction from  "./pages/JoinAuction/SealedBasedAuction.jsx";
 import LiveBasedAuction from  "./pages/JoinAuction/LiveBasedAuction.jsx";
+import Auction from "./pages/Admin/Auction/Auction.jsx";
 
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -42,7 +43,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="admin/categorieslist" element={<CategoryList />} />
           <Route path="admin/items" element={<Item />} />
           <Route path="/admin/items/:id" element={<ItemDetail />} />
-          <Route path="admin" element={<AdminDashboard />} />
+          <Route path="admin/auction" element={<Auction />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aboutUs" element={<AboutUs />} />
           <Route path="browseAuctions" element={<BrowseAuctions />} />
