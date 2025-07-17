@@ -16,7 +16,7 @@ const createAuction = async (auctionData) => {
     formData.append("auction_start_time", auctionData.auction_start_time);
     formData.append("auction_end_time", auctionData.auction_end_time);
     formData.append("is_invite_only", String(auctionData.is_invite_only));
-    
+
     if (auctionData.banner_image) {
       formData.append("banner_image", auctionData.banner_image);
     }
@@ -58,7 +58,6 @@ const createAuction = async (auctionData) => {
   }
 };
 
-
 /**
  * Get all auctions
  */
@@ -77,14 +76,26 @@ const getAllAuctions = async (queryParams = {}) => {
 /**
  * Get auction details by ID
  */
-const getAuctionById = async (auctionId) => {
+
+const getAuctionById = async (auction_id) => {
   try {
-    const response = await apiClient.get(`/auction/${auctionId}`);
-    return response.data.data;
+    // Validate auction_id before making request
+    if (!auction_id) {
+      throw new Error("Auction ID is required");
+    }
+
+    // Log the request for debugging
+    console.log("Fetching auction details for ID:", auction_id);
+
+    const response = await apiClient.get(`/auction/${auction_id}`);
+    console.log("Auction details response:", response.data);
+
+    return response.data;
   } catch (error) {
     const message =
       error.response?.data?.message || "Failed to fetch auction details.";
     console.error("Get auction details error:", message);
+    console.error("Full error:", error);
     throw new Error(message);
   }
 };
@@ -169,7 +180,7 @@ const revealSealedBids = async (auctionId) => {
  */
 const placeTimedBid = async (bidData) => {
   try {
-    const response = await apiClient.post(`/auction/timed-bid`, bidData);
+    const response = await apiClient.post(`/auction/timed`, bidData);
     return response.data.data;
   } catch (error) {
     const message =

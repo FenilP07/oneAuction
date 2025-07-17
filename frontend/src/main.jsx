@@ -14,17 +14,14 @@ import ItemListingPage from "./pages/ItemListingPage/ItemListingPage.jsx";
 import Home from "./pages/Home/Home.jsx";
 import AdminDashboard from "./pages/Admin/AdminDasboard.jsx";
 import CategoryList from "./pages/Admin/Categories/CategoryList.jsx";
-
 import Item from "./pages/Admin/Item/Item.jsx";
 import ItemDetail from "./pages/Admin/Item/ItemDetail.jsx";
-
 import AboutUs from "./pages/AboutUs/AboutUs.jsx";
-import BrowseAuctions from  "./pages/BrowseAuctions/BrowseAuctions.jsx";
-import TimeBasedAuction from  "./pages/JoinAuction/TimeBasedAuction.jsx";
-import SealedBasedAuction from  "./pages/JoinAuction/SealedBasedAuction.jsx";
-import LiveBasedAuction from  "./pages/JoinAuction/LiveBasedAuction.jsx";
-import Auction from "./pages/Admin/Auction/Auction.jsx";
-
+import BrowseAuctions from "./pages/BrowseAuctions/BrowseAuctions.jsx";
+import TimeBasedAuction from "./pages/JoinAuction/TimeBasedAuction.jsx";
+import SealedBasedAuction from "./pages/JoinAuction/SealedBasedAuction.jsx";
+import LiveBasedAuction from "./pages/JoinAuction/LiveBasedAuction.jsx";
+import JoinAuction from "./pages/JoinAuction/JoinAuction.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -48,9 +45,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="aboutUs" element={<AboutUs />} />
           <Route path="browseAuctions" element={<BrowseAuctions />} />
-          <Route path="joinAuction/timebased/:id" element={<TimeBasedAuction />} />
-          <Route path="joinAuction/sealbased/:id" element={<SealedBasedAuction />} />
-          <Route path="joinAuction/livebased/:id" element={<LiveBasedAuction />} />
+          <Route path="joinAuction/:auctionType/:auction_id" element={<JoinAuction />} />
         </Route>
       </Routes>
     </BrowserRouter>

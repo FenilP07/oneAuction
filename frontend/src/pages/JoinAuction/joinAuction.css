@@ -1,0 +1,30 @@
+.joinAuction .card-img-top {
+  max-height: 400px;
+  object-fit: cover;
+}
+.joinAuction .card {
+  transition: transform 0.2s;
+}
+.joinAuction .card:hover {
+  transform: translateY(-5px);
+}
+.joinAuction .img-thumbnail {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+}
+.joinAuction .badge {
+  font-size: 1.2rem;
+}
+.joinAuction .input-group-text {
+  background-color: #f8f9fa;
+}
+.pulse-animation {
+  animation: pulse 0.6s ease-in-out;
+}
+
+@keyframes pulse {
+  0% { background-color: #d1e7dd; }
+  50% { background-color: #198754; color: white; }
+  100% { background-color: #d1e7dd; }
+}

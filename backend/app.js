@@ -10,9 +10,9 @@ import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
 import redis from "redis";
-import mongoose from "mongoose";  // Added mongoose import
-import jwt from "jsonwebtoken";  // Added jwt import
-import { apiError } from "./utils/apiError.js"; // Added apiError import
+import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import { apiError } from "./utils/apiError.js";
 
 import { errorHandler } from "./middlewares/error.middlewares.js";
 import userRoutes from "./routes/user.routes.js";
@@ -27,15 +27,30 @@ import liveAuctionRoutes from "./routes/liveAuction.routes.js";
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+const allowedOrigins = [
+  process.env.CLIENT_URL || "http://localhost:5173",
+  "http://localhost:3000", // Add other origins as needed
+];
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps) or allowed origins
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
   },
+  pingTimeout: 20000,
+  pingInterval: 25000,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
 });
 
 const redisClient = redis.createClient({
@@ -43,15 +58,28 @@ const redisClient = redis.createClient({
 });
 
 redisClient.on("error", (err) => logger.error("Redis Client Error", err));
-redisClient
-  .connect()
-  .then(() => logger.info("Connected to Redis"))
-  .catch((err) => {
-    logger.error("Redis connection failed", err);
-    process.exit(1); // stop process if Redis not connected
-  });
 
-// Make redis client accessible in requests if needed
+// Retry Redis connection with fallback
+const connectRedisWithRetry = async (retries = 5, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await redisClient.connect();
+      logger.info("Connected to Redis");
+      return;
+    } catch (err) {
+      logger.error(`Redis connection attempt ${i + 1} failed: ${err.message}`);
+      if (i < retries - 1) {
+        await new Promise((res) => setTimeout(res, delay));
+      }
+    }
+  }
+  logger.warn("Redis connection failed after retries; proceeding without cache");
+};
+
+// Connect to Redis
+connectRedisWithRetry();
+
+// Make redis client accessible in requests
 app.use((req, res, next) => {
   req.redis = redisClient;
   next();
@@ -59,7 +87,13 @@ app.use((req, res, next) => {
 
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
@@ -98,45 +132,148 @@ app.use("/api/auction/", auctionRoutes);
 app.use("/api/auctionSession/", auctionSessionRoutes);
 app.use("/api/liveAuction/", liveAuctionRoutes);
 
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token?.split(" ")[1];
-  if (!token) {
-    return next(new apiError(401, "Authentication token required"));
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    socket.user = decoded;
-    next();
-  } catch (error) {
-    next(new apiError(403, "Invalid or expired token"));
-  }
-});
+// Main Socket.IO connection (without auth for basic connection)
+io.on("connection", (socket) => {
+  logger.info(`Client connected: ${socket.id}`);
 
+  socket.on("join_auction_room", (auction_id) => {
+    socket.join(auction_id);
+    logger.info(`Client ${socket.id} joined auction room: ${auction_id}`);
+  });
 
-const auctionNamespace = io.of("/auctions");
-auctionNamespace.on("connection", (socket) => {
-  logger.info(`User ${socket.user._id} connected to auction namespace`);
-
-  socket.on("joinSession", async ({ session_id }) => {
-    try {
-      const session = await mongoose.model("AuctionSession").findById(session_id);
-      if (!session || session.status !== "active") {
-        socket.emit("error", { message: "Session not found or not active" });
-        return;
-      }
-      socket.join(session_id);
-      logger.info(`User ${socket.user._id} joined session ${session_id}`);
-    } catch (err) {
-      logger.error("Error in joinSession event", err);
-      socket.emit("error", { message: "Internal server error" });
-    }
+  socket.on("leave_auction_room", (auction_id) => {
+    socket.leave(auction_id);
+    logger.info(`Client ${socket.id} left auction room: ${auction_id}`);
   });
 
   socket.on("disconnect", () => {
-    logger.info(`User ${socket.user._id} disconnected`);
+    logger.info(`Client disconnected: ${socket.id}`);
   });
+});
+
+// Socket.IO Authentication Middleware
+const socketAuthMiddleware = async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token || socket.handshake.query.token;
+    
+    if (!token) {
+      logger.error("Authentication token missing");
+      return next(new Error("Authentication token missing"));
+    }
+
+    const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token;
+
+    const decoded = jwt.verify(cleanToken, process.env.ACCESS_TOKEN_SECRET);
+    
+    const RevokedToken = mongoose.model("RevokedToken");
+    const revoked = await RevokedToken.findOne({ token: cleanToken });
+    if (revoked) {
+      logger.error("Access token has been revoked");
+      return next(new Error("Access token has been revoked"));
+    }
+    
+    const userId = decoded._id;
+    if (!userId) {
+      logger.error("No user ID found in decoded token");
+      return next(new Error("Invalid token structure"));
+    }
+    
+    const User = mongoose.model("User");
+    const user = await User.findById(userId).select("-password -refreshToken");
+    
+    if (!user) {
+      logger.error(`User not found with ID: ${userId}`);
+      return next(new Error("User not found"));
+    }
+
+    if (user.status !== "active") {
+      logger.error(`User account not active for ID: ${userId}`);
+      return next(new Error("User account is not active"));
+    }
+
+    socket.user = user;
+    next();
+  } catch (error) {
+    logger.error("Socket authentication error:", error.message);
+    return next(new Error(`Authentication failed: ${error.message}`));
+  }
+};
+
+// Create auction namespace and apply authentication middleware
+const auctionNamespace = io.of("/auctions");
+auctionNamespace.use(socketAuthMiddleware);
+
+auctionNamespace.on("connection", (socket) => {
+  try {
+    logger.info(`User ${socket.user._id} (${socket.user.username || "Unknown"}) connected to auction namespace`);
+
+    // Emit userJoined event on connection
+    auctionNamespace.emit("userJoined", {
+      user_id: socket.user._id,
+      username: socket.user.username || "Anonymous",
+      timestamp: new Date(),
+    });
+
+    socket.join(socket.user._id.toString());
+
+    socket.on("join_auction_room", (auction_id) => {
+      try {
+        socket.join(auction_id);
+        logger.info(`User ${socket.user._id} joined auction room: ${auction_id}`);
+        // Emit userJoined event to the specific auction room
+        auctionNamespace.to(auction_id).emit("userJoined", {
+          user_id: socket.user._id,
+          username: socket.user.username || "Anonymous",
+          timestamp: new Date(),
+        });
+      } catch (error) {
+        logger.error(`Error joining auction room ${auction_id}: ${error.message}`);
+        socket.emit("error", { message: "Failed to join auction room" });
+      }
+    });
+
+    socket.on("leave_auction_room", (auction_id) => {
+      try {
+        socket.leave(auction_id);
+        logger.info(`User ${socket.user._id} left auction room: ${auction_id}`);
+      } catch (error) {
+        logger.error(`Error leaving auction room ${auction_id}: ${error.message}`);
+        socket.emit("error", { message: "Failed to leave auction room" });
+      }
+    });
+
+    socket.on("joinSession", async ({ session_id }) => {
+      try {
+        const session = await mongoose
+          .model("AuctionSession")
+          .findById(session_id);
+        if (!session || session.status !== "active") {
+          socket.emit("error", { message: "Session not found or not active" });
+          return;
+        }
+        socket.join(session_id);
+        logger.info(`User ${socket.user._id} joined session ${session_id}`);
+      } catch (err) {
+        logger.error(`Error in joinSession event for session ${session_id}: ${err.message}`);
+        socket.emit("error", { message: "Internal server error" });
+      }
+    });
+
+    socket.on("disconnect", (reason) => {
+      logger.info(`User ${socket.user._id} disconnected from auction namespace. Reason: ${reason}`);
+    });
+
+    socket.on("error", (error) => {
+      logger.error(`Socket error for user ${socket.user._id}: ${error.message}`);
+    });
+
+  } catch (error) {
+    logger.error(`Error in auction namespace connection for user ${socket.user?._id || "unknown"}: ${error.message}`);
+    socket.emit("error", { message: "Connection error" });
+    socket.disconnect();
+  }
 });
 
 app.use(errorHandler);
 
-export { app, auctionNamespace, redisClient, server };
+export { app, auctionNamespace, redisClient, server, io };
