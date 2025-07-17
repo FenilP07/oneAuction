@@ -1,4 +1,3 @@
-// auctionCronJob.js
 import cron from "node-cron";
 import mongoose from "mongoose";
 import Auction from "../models/auction.models.js";
@@ -69,14 +68,12 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
   for (const auction of upcomingAuctions) {
     try {
       await executeWithTransaction(async (session) => {
-        // Update auction status
         await Auction.findByIdAndUpdate(
           auction._id,
           { auction_status: "active" },
           { session }
         );
 
-        // Create or update session for live auctions
         if (auction.auctionType_id.equals(auctionTypes.live._id)) {
           const existingSession = await AuctionSession.findOne({ 
             auction_id: auction._id 
@@ -112,7 +109,6 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
       await clearAuctionCache();
       
     } catch (error) {
-      // Continue with other auctions even if one fails
       continue;
     }
   }
@@ -122,7 +118,6 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
 const processExpiredAuctions = async (now, auctionTypes) => {
   const expiredAuctions = await Auction.find({
     auction_status: "active",
-    auction_end_time: { $lte: now },
     deletedAt: null,
     auctionType_id: { $in: [auctionTypes.sealed._id, auctionTypes.timed._id] },
   }).lean();
@@ -132,32 +127,35 @@ const processExpiredAuctions = async (now, auctionTypes) => {
   logger.info(`Processing ${expiredAuctions.length} expired auctions`);
 
   for (const auction of expiredAuctions) {
-    try {
-      await executeWithTransaction(async (session) => {
-        const itemId = auction.settings?.item_ids?.[0];
-        if (!itemId) {
-          logger.warn(`Auction ${auction._id} has no item_ids`);
-          return;
-        }
+    const deadline = auction.auctionType_id.equals(auctionTypes.sealed._id)
+      ? (auction.settings.sealed_bid_deadline || auction.auction_end_time)
+      : auction.auction_end_time;
 
-        await processAuctionWinner(auction, itemId, auctionTypes, session);
-        
-        // Mark auction as completed
-        await Auction.findByIdAndUpdate(
-          auction._id,
-          { auction_status: "completed" },
-          { session }
-        );
+    if (deadline <= now) {
+      try {
+        await executeWithTransaction(async (session) => {
+          const itemId = auction.settings?.item_ids?.[0];
+          if (!itemId) {
+            logger.warn(`Auction ${auction._id} has no item_ids`);
+            return;
+          }
 
-        return auction._id;
-      }, `Error completing auction ${auction._id}`);
+          await processAuctionWinner(auction, itemId, auctionTypes, session);
+          
+          await Auction.findByIdAndUpdate(
+            auction._id,
+            { auction_status: "completed" },
+            { session }
+          );
 
-      logger.info(`Completed auction ${auction._id} (${auction.auction_title})`);
-      await clearAuctionCache();
-      
-    } catch (error) {
-      // Continue with other auctions even if one fails
-      continue;
+          return auction._id;
+        }, `Error completing auction ${auction._id}`);
+
+        logger.info(`Completed auction ${auction._id} (${auction.auction_title})`);
+        await clearAuctionCache();
+      } catch (error) {
+        continue;
+      }
     }
   }
 };
@@ -168,7 +166,6 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
   let highestBid = null;
 
   if (auction.auctionType_id.equals(auctionTypes.sealed._id)) {
-    // For sealed bid: find highest among all bids
     const bids = await Bid.find({ 
       auction_id: auction._id, 
       item_id: itemId 
@@ -177,18 +174,22 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
     if (bids.length > 0) {
       highestBid = bids.reduce((max, bid) => 
         bid.amount > max.amount ? bid : max, 
-        { amount: 0 }
+        { amount: -Infinity }
+      );
+      // Reset all is_winner flags
+      await Bid.updateMany(
+        { auction_id: auction._id, item_id: itemId },
+        { is_winner: false },
+        { session }
       );
     }
   } else if (auction.auctionType_id.equals(auctionTypes.timed._id)) {
-    // For timed: find highest bid
     highestBid = await Bid.findOne({ 
       auction_id: auction._id, 
       item_id: itemId 
     }).sort({ amount: -1 }).session(session);
   }
 
-  // Update winner and item status
   if (highestBid && highestBid.amount >= reservePrice) {
     await Bid.findByIdAndUpdate(
       highestBid._id,
@@ -200,12 +201,14 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
       { status: "sold", winner_id: highestBid.bidder_id },
       { session }
     );
+    logger.info(`Winner for auction ${auction._id}: ${highestBid.bidder_id} with amount $${highestBid.amount}`);
   } else {
     await Item.findByIdAndUpdate(
       itemId,
       { status: "unsold" },
       { session }
     );
+    logger.info(`No winner for auction ${auction._id}, item marked unsold`);
   }
 };
 
@@ -228,14 +231,12 @@ const processActiveSessions = async (now, io) => {
           return;
         }
 
-        // Check for recent bids
         const recentBids = await Bid.find({
           auction_id: auction._id,
           item_id: auction.settings?.current_item_id,
           timestamp: { $gte: new Date(now - 60 * 1000) },
         }).session(dbSession);
 
-        // Mark item as unsold if no recent bids
         if (!recentBids.length && auction.settings?.current_item_id) {
           await Item.findByIdAndUpdate(
             auction.settings.current_item_id,
@@ -243,7 +244,6 @@ const processActiveSessions = async (now, io) => {
             { session: dbSession }
           );
           
-          // Emit socket event
           io.to(`session:${session._id}`).emit("itemChanged", {
             session_id: session._id,
             item_id: auction.settings.current_item_id,
@@ -254,7 +254,6 @@ const processActiveSessions = async (now, io) => {
         return auction._id;
       }, `Error processing session ${session._id}`);
 
-      // Move to next item (outside transaction to avoid deadlocks)
       try {
         const nextItemId = await moveToNextItemWithTransaction(
           session.auction_id, 
@@ -275,7 +274,6 @@ const processActiveSessions = async (now, io) => {
       }
       
     } catch (error) {
-      // Continue with other sessions even if one fails
       continue;
     }
   }
@@ -284,7 +282,7 @@ const processActiveSessions = async (now, io) => {
 const auctionCronJob = (io) => {
   logger.info("Initializing auction cron job...");
 
-  cron.schedule("*/10* * * * *", async () => {
+  cron.schedule("*/10 * * * * *", async () => { // Run every 10 seconds
     const startTime = Date.now();
     const now = new Date();
     
@@ -293,7 +291,6 @@ const auctionCronJob = (io) => {
 
       const auctionTypes = await getAuctionTypes();
 
-      // Process each type of auction transition
       await Promise.allSettled([
         processUpcomingAuctions(now, auctionTypes),
         processExpiredAuctions(now, auctionTypes),
@@ -311,7 +308,7 @@ const auctionCronJob = (io) => {
     }
   });
 
-  logger.info("Auction cron job started - running every minute");
+  logger.info("Auction cron job started - running every 10 seconds");
 };
 
 export default auctionCronJob;

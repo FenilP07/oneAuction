@@ -20,11 +20,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
     startDate: "",
     startTime: "",
     timePeriod: "",
+    sealed_bid_deadline: "", // Added for sealed bid
     agreement: false,
     items: [],
     sequence: [],
     banner_image: null,
-    is_invite_only: false,
+    hint: "", // For sealed bid
   });
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,6 +156,17 @@ const AuctionModal = ({ onAuctionCreate }) => {
     ) {
       return "Timed and sealed bid auctions can only have one item";
     }
+    if (selectedAuctionType.type_name === "sealed_bid" && auctionData.hint.length > 200) {
+      return "Hint must be 200 characters or less";
+    }
+    if (selectedAuctionType.type_name === "sealed_bid") {
+      const deadline = auctionData.sealed_bid_deadline
+        ? new Date(auctionData.sealed_bid_deadline)
+        : null;
+      if (deadline && (isNaN(deadline.getTime()) || deadline < startDateTime || deadline > new Date(`${auctionData.startDate}T${auctionData.startTime}`).getTime() + auctionData.timePeriod * 60000)) {
+        return "Sealed bid deadline must be between start time and end time";
+      }
+    }
     return null;
   }, [auctionData, selectedAuctionType]);
 
@@ -176,13 +188,17 @@ const AuctionModal = ({ onAuctionCreate }) => {
       auction_title,
       auction_description,
       banner_image,
-      is_invite_only,
+      hint,
+      sealed_bid_deadline,
     } = auctionData;
 
     const auction_start_time = new Date(`${startDate}T${startTime}`).toISOString();
     const auction_end_time = new Date(
       new Date(`${startDate}T${startTime}`).getTime() + timePeriod * 60000
     ).toISOString();
+    const deadline = sealed_bid_deadline
+      ? new Date(sealed_bid_deadline).toISOString()
+      : auction_end_time; // Default to end time if not set
 
     const payload = {
       auctionType_id: selectedAuctionType._id,
@@ -190,12 +206,16 @@ const AuctionModal = ({ onAuctionCreate }) => {
       auction_description: auction_description.trim(),
       auction_start_time,
       auction_end_time,
-      is_invite_only,
+      ...(selectedAuctionType.type_name === "sealed_bid" && { hint: hint.trim() }),
+      ...(selectedAuctionType.type_name === "live" && { is_invite_only: auctionData.is_invite_only }),
       banner_image,
       settings:
         selectedAuctionType.type_name === "live"
           ? { item_ids: items }
-          : { item_id: items[0] },
+          : {
+              item_id: items[0],
+              ...(selectedAuctionType.type_name === "sealed_bid" && { sealed_bid_deadline: deadline }),
+            },
     };
 
     try {
@@ -221,15 +241,17 @@ const AuctionModal = ({ onAuctionCreate }) => {
       startDate: currentDate,
       startTime: currentTime,
       timePeriod: "",
+      sealed_bid_deadline: "", // Reset deadline
       agreement: false,
       items: [],
       sequence: [],
       banner_image: null,
-      is_invite_only: false,
+      hint: "",
+      ...(selectedAuctionType?.type_name === "live" && { is_invite_only: false }),
     });
     setBannerPreview(null);
     setError(null);
-  }, [currentDate, currentTime]);
+  }, [currentDate, currentTime, selectedAuctionType]);
 
   const handlePageChange = useCallback((newPage) => {
     if (newPage >= 1 && newPage <= itemsData.totalPages) {
@@ -531,6 +553,47 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         </Form.Text>
                       </Form.Group>
 
+                      {selectedAuctionType.type_name === "sealed_bid" && (
+                        <>
+                          <Form.Group className="mb-2" controlId="hint">
+                            <Form.Label className="mb-0 fs-6">Hint</Form.Label>
+                            <Form.Control
+                              as="textarea"
+                              name="hint"
+                              value={auctionData.hint}
+                              onChange={handleInputChange}
+                              size="sm"
+                              rows={2}
+                              maxLength={200}
+                              placeholder="Provide a hint for bidders (e.g., 'Older than 50 years')"
+                              aria-describedby="hint_help"
+                            />
+                            <Form.Text id="hint_help" muted>
+                              Max 200 characters, optional
+                            </Form.Text>
+                          </Form.Group>
+
+                          <Form.Group className="mb-2" controlId="sealed_bid_deadline">
+                            <Form.Label className="mb-0 fs-6">Sealed Bid Deadline*</Form.Label>
+                            <Form.Control
+                              type="datetime-local"
+                              name="sealed_bid_deadline"
+                              value={auctionData.sealed_bid_deadline}
+                              min={`${auctionData.startDate}T${auctionData.startTime}`}
+                              max={new Date(
+                                new Date(`${auctionData.startDate}T${auctionData.startTime}`).getTime() + auctionData.timePeriod * 60000
+                              ).toISOString().slice(0, 16)}
+                              onChange={handleInputChange}
+                              size="sm"
+                              required
+                            />
+                            <Form.Text muted>
+                              Must be between start time and end time
+                            </Form.Text>
+                          </Form.Group>
+                        </>
+                      )}
+
                       <Form.Group className="mb-2" controlId="banner_image">
                         <Form.Label className="mb-0 fs-6">Banner Image</Form.Label>
                         <Form.Control
@@ -599,16 +662,18 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         </Form.Text>
                       </Form.Group>
 
-                      <Form.Group className="mb-2" controlId="is_invite_only">
-                        <Form.Check
-                          type="checkbox"
-                          label="Invite-only auction"
-                          name="is_invite_only"
-                          checked={auctionData.is_invite_only}
-                          onChange={handleInputChange}
-                          id="is_invite_only"
-                        />
-                      </Form.Group>
+                      {selectedAuctionType.type_name === "live" && (
+                        <Form.Group className="mb-2" controlId="is_invite_only">
+                          <Form.Check
+                            type="checkbox"
+                            label="Invite-only auction"
+                            name="is_invite_only"
+                            checked={auctionData.is_invite_only}
+                            onChange={handleInputChange}
+                            id="is_invite_only"
+                          />
+                        </Form.Group>
+                      )}
 
                       <Form.Group
                         className={`mb-2 ${error === "You must agree to the terms and conditions" ? "text-danger" : ""}`}

@@ -13,10 +13,7 @@ import { auctionNamespace, redisClient } from "../app.js";
 import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
 
-const ENCRYPTION_KEY = Buffer.from(
-  "KI9xeBeSS2C7+fw1TEe2iNO8D3Cqe0QOk/j54Im6Jyc9vkQKJlw6R8jErRjLbH8B",
-  "hex"
-); // 32 bytes key
+const ENCRYPTION_KEY = crypto.randomBytes(32);
 const IV_LENGTH = 16;
 
 function encryptAmount(amount) {
@@ -54,6 +51,7 @@ const createAuction = asyncHandler(async (req, res) => {
     auction_end_time,
     is_invite_only,
     settings,
+    hint,
   } = req.body;
 
   if (typeof settings === "string") {
@@ -109,8 +107,7 @@ const createAuction = asyncHandler(async (req, res) => {
     }
     sanitizedSettings.item_ids = settings.item_ids;
     sanitizedSettings.current_item_id = settings.item_ids[0];
-    sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || minStartingBid || 0;
+    sanitizedSettings.reserve_price = Number(settings?.reserve_price) || items[0]?.starting_bid || 0;
   } else if (auctionType.type_name === "sealed_bid") {
     if (!settings?.item_id || settings.item_ids?.length > 1) {
       throw new apiError(400, "Sealed bid auctions require exactly one item");
@@ -123,16 +120,14 @@ const createAuction = asyncHandler(async (req, res) => {
       throw new apiError(400, "Invalid or unavailable item");
     }
     sanitizedSettings.item_ids = [settings.item_id];
-    sanitizedSettings.sealed_bid_deadline =
-      settings.sealed_bid_deadline || endTime;
-    sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || item.starting_bid || 0;
+    sanitizedSettings.sealed_bid_deadline = new Date(settings.sealed_bid_deadline) || endTime;
+    if (sanitizedSettings.sealed_bid_deadline > endTime) {
+      throw new apiError(400, "Sealed bid deadline cannot be after auction end time");
+    }
+    sanitizedSettings.reserve_price = Number(settings?.reserve_price) || item.starting_bid || 0;
   } else if (auctionType.type_name === "single_timed_item") {
     if (!settings?.item_id || settings.item_ids?.length > 1) {
-      throw new apiError(
-        400,
-        "Single timed item auctions require exactly one item"
-      );
+      throw new apiError(400, "Single timed item auctions require exactly one item");
     }
     const item = await Item.findOne({
       _id: new mongoose.Types.ObjectId(settings.item_id),
@@ -142,10 +137,8 @@ const createAuction = asyncHandler(async (req, res) => {
       throw new apiError(400, "Invalid or unavailable item");
     }
     sanitizedSettings.item_ids = [settings.item_id];
-    sanitizedSettings.auto_extend_duration =
-      Number(settings.auto_extend_duration) || 0;
-    sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || item.starting_bid || 0;
+    sanitizedSettings.auto_extend_duration = Number(settings.auto_extend_duration) || 0;
+    sanitizedSettings.reserve_price = Number(settings?.reserve_price) || item.starting_bid || 0;
   } else {
     throw new apiError(400, "Unsupported auction type");
   }
@@ -158,6 +151,7 @@ const createAuction = asyncHandler(async (req, res) => {
       auction_description: auction_description || "",
       auction_start_time: startTime,
       auction_end_time: endTime,
+      hint: hint || "",
       is_invite_only: !!is_invite_only,
       banner_image: req.file?.path,
       settings: sanitizedSettings,
