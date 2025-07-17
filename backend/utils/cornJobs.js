@@ -284,7 +284,7 @@ const processActiveSessions = async (now, io) => {
 const auctionCronJob = (io) => {
   logger.info("Initializing auction cron job...");
 
-  cron.schedule("* * * * *", async () => {
+  cron.schedule("*/10* * * * *", async () => {
     const startTime = Date.now();
     const now = new Date();
     
