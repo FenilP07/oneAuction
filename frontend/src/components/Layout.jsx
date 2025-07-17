@@ -1,21 +1,33 @@
 import React from "react";
-import SideNavbar from "./SideNavbar"; //  for Sidebar
-import "./sidenavbar.css"
+import { useNavigate } from "react-router-dom";
+import useAuthStore from "../store/authStore";
+import AdminNavbar from "./AdminNavbar";
+
 
 const Layout = ({ children }) => {
-  return (
-    <div className="page-wrapper">
-      <SideNavbar />
+  const navigate = useNavigate();
+  const clearAuth = useAuthStore((state) => state.clearAuth);
 
-      <div className="main-content">
-        {/* Top navigation bar */}
-        <div className="top-nav">
-          <p>Admin Panel</p>
-          <a href="/logout">Logout</a>
+  const handleLogout = () => {
+    clearAuth();
+    navigate("/login");
+  };
+
+  return (
+    <div className="admin-layout">
+      <AdminNavbar />
+      
+      <div className="admin-content-wrapper">
+        {/* Welcome bar */}
+        <div className="welcome-bar">
+          {/* <div className="welcome-message">
+            <h2>Welcome back, {useAuthStore.getState().user?.profile?.firstName || 'Admin'}</h2>
+            <p>Manage your auctions and items</p>
+          </div> */}
         </div>
 
-        {/* Page content */}
-        <main>
+        {/* Main Content */}
+        <main className="admin-main-content">
           {children}
         </main>
       </div>
@@ -24,4 +36,3 @@ const Layout = ({ children }) => {
 };
 
 export default Layout;
-

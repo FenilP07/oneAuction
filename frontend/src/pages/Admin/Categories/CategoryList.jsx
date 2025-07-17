@@ -4,6 +4,7 @@ import "./categories.css";
 import Layout from "../../../components/Layout";
 import EditCategoryModal from "./EditCategoryModal";
 
+
 const CategoryList = () => {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -31,10 +32,22 @@ const CategoryList = () => {
     setShowModal(true);
   };
 
+   const handleAddCategory = () => {
+    navigate("/addcategory");
+  };
+
   return (
     <Layout>
       <div className="main-content-categorylist">
-        <h3 className="category-title">Categories</h3>
+        {/* <h3 className="category-title">Categories</h3> */}
+         <div className="category-header">
+          <h3 className="category-title">Categories</h3>
+          <button className="add-category-btn" onClick={handleAddCategory}>
+          
+            Add Category
+          </button>
+        </div>
+        
 
         <div className="category-container">
          {categories.map((category) => (

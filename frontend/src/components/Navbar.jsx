@@ -98,8 +98,13 @@ function Navbar() {
 										<NavLink to="/profile" className={dropdownItemClass}>Profile</NavLink>
 									</li>
 									{user?.role === 'admin' && (
-										<li>
+
+										<Link className="dropdown-item" to="/admin/dashboard">
+											Admin
+										</Link>
+
 											<NavLink to="/admin" className={dropdownItemClass}>Admin</NavLink>
+
 										</li>
 									)}
 									<li><hr className="dropdown-divider" /></li>
