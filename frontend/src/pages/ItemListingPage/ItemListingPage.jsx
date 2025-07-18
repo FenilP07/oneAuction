@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { Link } from 'react-router-dom';
+
 import useAuthStore from "../../store/authStore";
 import  {getAllCategories} from "../../services/categoryService";
 import  {createItem}  from "../../services/itemService";
@@ -206,12 +208,12 @@ const ItemListingPage = () => {
   }
 
   return (
-    <div className="container mt-4 mb-5">
-      <div className="card">
-        <div className="card-body">
+    <div className="container-fuild bgOne p-5">
+      <div className="card bgSecond m-3">
+        <div className="card-body px-5">
           <div className="mb-4">
-            <h2 className="card-title">Create New Item</h2>
-            <p className="text-muted">
+            <h2 className="card-title text-center textSecond fw-bold">Create New Item</h2>
+            <p className="text-muted text-center">
               Add a new item to the auction. Your item will be reviewed before going live.
             </p>
           </div>
@@ -401,6 +403,9 @@ const ItemListingPage = () => {
                   </>
                 )}
               </button>
+              <Link to="/dashboard" className="btn btn-secondary ms-2">
+                Cancel
+              </Link>
             </div>
           </form>
         </div>

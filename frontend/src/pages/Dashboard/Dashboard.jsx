@@ -712,10 +712,10 @@ const Dashboard = () => {
   return (
     <>
       <Navbar />
-      <main className="container-fluid py-4">
+      <main className="container-fluid py-4 bgSecond">
         <div className="d-flex justify-content-between align-items-center mb-4">
           <div>
-            <h2 className="mb-1">Welcome back, {user.username || "User"}</h2>
+            <h2 className="mb-1 textSecond fw-bold">Welcome back, {user.username || "User"}</h2>
             <p className="text-muted mb-0">
               {activeTab === "auctioneer"
                 ? "Manage your auctions and items"
