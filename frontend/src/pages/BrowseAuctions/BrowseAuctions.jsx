@@ -762,7 +762,9 @@ const BrowseAuctions = () => {
                               </button>
                             ) : auction.status === "completed" ? (
                               <button
-                                onClick={() => navigate(`/leaderBoardPage/${auction._id}`)}
+                                onClick={() =>
+                                  fetchAuctionLeaderboard(auction._id)
+                                }
                                 className="btn btn-sm btn-outline-secondary"
                                 disabled={!auction._id}
                               >
