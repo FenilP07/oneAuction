@@ -22,6 +22,9 @@ const createAuction = async (auctionData) => {
     }
 
     formData.append("settings", JSON.stringify(auctionData.settings));
+    if (auctionData.hint) {
+      formData.append("hint", auctionData.hint.trim());
+    }
 
     console.log("createAuction: FormData entries:");
     for (const [key, value] of formData.entries()) {
@@ -165,7 +168,7 @@ const placeSealedBid = async (bidData) => {
  */
 const revealSealedBids = async (auctionId) => {
   try {
-    const response = await apiClient.post(`/auction/${auctionId}/reveal-bids`);
+    const response = await apiClient.post(`/auction/reveal/${auctionId}`);
     return response.data.data;
   } catch (error) {
     const message =
@@ -226,6 +229,24 @@ const getMyAuctions = async () => {
   }
 };
 
+/**
+ * Get sealed bid leaderboard
+ */
+const getSealedBidLeaderboard = async (auctionId) => {
+  try {
+    const response = await apiClient.get(
+      `/auction/sealed-leaderboard/${auctionId}`
+    );
+    return response.data.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      "Failed to fetch sealed bid leaderboard.";
+    console.error("Get sealed bid leaderboard error:", message);
+    throw new Error(message);
+  }
+};
+
 export {
   createAuction,
   getAllAuctions,
@@ -238,4 +259,5 @@ export {
   placeTimedBid,
   getMyBids,
   getMyAuctions,
+  getSealedBidLeaderboard,
 };

@@ -12,59 +12,37 @@ import upload from "../utils/cloudinary.js";
 import { auctionNamespace, redisClient } from "../app.js";
 import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
+import { encryptAmount, decryptAmount } from "../utils/encryption.js";
 
-const ENCRYPTION_KEY = Buffer.from(
-  "KI9xeBeSS2C7+fw1TEe2iNO8D3Cqe0QOk/j54Im6Jyc9vkQKJlw6R8jErRjLbH8B",
-  "hex"
-); // 32 bytes key
-const IV_LENGTH = 16;
-
-function encryptAmount(amount) {
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
-  let encrypted = cipher.update(amount.toString(), "utf8", "hex");
-  encrypted += cipher.final("hex");
-  return iv.toString("hex") + ":" + encrypted;
-}
-
-function decryptAmount(encrypted) {
-  const [ivHex, encryptedData] = encrypted.split(":");
-  if (!ivHex || !encryptedData) {
-    throw new Error("Invalid encrypted data format");
-  }
-  const iv = Buffer.from(ivHex, "hex");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", ENCRYPTION_KEY, iv);
-  let decrypted = decipher.update(encryptedData, "hex", "utf8");
-  decrypted += decipher.final("utf8");
-  return Number(decrypted);
-}
 const createAuction = asyncHandler(async (req, res) => {
-  console.log("createAuction: Request body:", req.body);
-  console.log("createAuction: Request file:", req.file);
-
-  if (!req.body) {
-    throw new apiError(400, "Request body is missing or invalid");
-  }
-
-  let {
+  const {
     auctionType_id,
     auction_title,
     auction_description,
     auction_start_time,
     auction_end_time,
-    is_invite_only,
+    is_invite_only: rawIsInviteOnly, // ← Rename during destructuring
     settings,
+    hint,
   } = req.body;
 
+  if (!req.body) {
+    throw new apiError(400, "Request body is missing or invalid");
+  }
+
+  let parsedSettings;
   if (typeof settings === "string") {
     try {
-      settings = JSON.parse(settings);
+      parsedSettings = JSON.parse(settings);
     } catch (error) {
       throw new apiError(400, "Invalid settings format");
     }
+  } else {
+    parsedSettings = settings;
   }
 
-  is_invite_only = is_invite_only === "true" || is_invite_only === true;
+  // ← Now create a new variable with the converted value
+  const is_invite_only = rawIsInviteOnly === "true" || rawIsInviteOnly === true;
 
   if (
     !auctionType_id ||
@@ -75,7 +53,20 @@ const createAuction = asyncHandler(async (req, res) => {
     throw new apiError(400, "Missing required fields");
   }
 
-  const auctionType = await AuctionTypes.findById(auctionType_id).lean();
+  if (!mongoose.Types.ObjectId.isValid(auctionType_id)) {
+    throw new apiError(400, "Invalid auction type ID");
+  }
+
+  const auctionType = await AuctionType.findById(auctionType_id).lean();
+  if (auctionType.type_name === "sealed_bid") {
+  if (!hint || typeof hint !== "string" || hint.trim().length === 0) {
+    throw new apiError(400, "Hint is required for sealed bid auctions");
+  }
+  if (hint.trim().length > 200) {
+    throw new apiError(400, "Hint must be 200 characters or less");
+  }
+}
+
   if (!auctionType) {
     throw new apiError(404, "Auction type not found");
   }
@@ -90,62 +81,81 @@ const createAuction = asyncHandler(async (req, res) => {
   }
 
   const sanitizedSettings = {
-    reserve_price: Number(settings?.reserve_price) || 0,
-    min_bid_increment: Number(settings?.min_bid_increment) || 1,
+    reserve_price: Number(parsedSettings?.reserve_price) || 0,
+    min_bid_increment: Number(parsedSettings?.min_bid_increment) || 1,
   };
 
   if (auctionType.type_name === "live") {
-    if (!settings?.item_ids?.length || settings.item_ids.length < 3) {
+    if (
+      !parsedSettings?.item_ids?.length ||
+      parsedSettings.item_ids.length < 3
+    ) {
       throw new apiError(400, "Live auctions require at least three items");
     }
+    const itemIds = parsedSettings.item_ids.map((id) => {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new apiError(400, `Invalid item ID: ${id}`);
+      }
+      return new mongoose.Types.ObjectId(id);
+    });
     const items = await Item.find({
-      _id: {
-        $in: settings.item_ids.map((id) => new mongoose.Types.ObjectId(id)),
-      },
+      _id: { $in: itemIds },
       status: "available",
     }).lean();
-    if (items.length !== settings.item_ids.length) {
+    if (items.length !== itemIds.length) {
       throw new apiError(400, "Invalid or unavailable items");
     }
-    sanitizedSettings.item_ids = settings.item_ids;
-    sanitizedSettings.current_item_id = settings.item_ids[0];
+    sanitizedSettings.item_ids = itemIds;
+    sanitizedSettings.current_item_id = itemIds[0];
     sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || minStartingBid || 0;
+      Number(parsedSettings?.reserve_price) || items[0]?.starting_bid || 0;
   } else if (auctionType.type_name === "sealed_bid") {
-    if (!settings?.item_id || settings.item_ids?.length > 1) {
+    if (!parsedSettings?.item_id || parsedSettings.item_ids?.length > 1) {
       throw new apiError(400, "Sealed bid auctions require exactly one item");
     }
+    if (!mongoose.Types.ObjectId.isValid(parsedSettings.item_id)) {
+      throw new apiError(400, `Invalid item ID: ${parsedSettings.item_id}`);
+    }
     const item = await Item.findOne({
-      _id: new mongoose.Types.ObjectId(settings.item_id),
+      _id: new mongoose.Types.ObjectId(parsedSettings.item_id),
       status: "available",
     }).lean();
     if (!item) {
       throw new apiError(400, "Invalid or unavailable item");
     }
-    sanitizedSettings.item_ids = [settings.item_id];
+    sanitizedSettings.item_ids = [parsedSettings.item_id];
     sanitizedSettings.sealed_bid_deadline =
-      settings.sealed_bid_deadline || endTime;
+      new Date(parsedSettings.sealed_bid_deadline) || endTime;
+    if (sanitizedSettings.sealed_bid_deadline > endTime) {
+      throw new apiError(
+        400,
+        "Sealed bid deadline cannot be after auction end time"
+      );
+    }
     sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || item.starting_bid || 0;
+      Number(parsedSettings?.reserve_price) || item.starting_bid || 0;
   } else if (auctionType.type_name === "single_timed_item") {
-    if (!settings?.item_id || settings.item_ids?.length > 1) {
+    if (!parsedSettings?.item_id || parsedSettings.item_ids?.length > 1) {
       throw new apiError(
         400,
         "Single timed item auctions require exactly one item"
       );
     }
+    if (!mongoose.Types.ObjectId.isValid(parsedSettings.item_id)) {
+      throw new apiError(400, `Invalid item ID: ${parsedSettings.item_id}`);
+    }
     const item = await Item.findOne({
-      _id: new mongoose.Types.ObjectId(settings.item_id),
+      _id: new mongoose.Types.ObjectId(parsedSettings.item_id),
       status: "available",
     }).lean();
     if (!item) {
       throw new apiError(400, "Invalid or unavailable item");
     }
-    sanitizedSettings.item_ids = [settings.item_id];
+    sanitizedSettings.item_ids = [parsedSettings.item_id];
     sanitizedSettings.auto_extend_duration =
-      Number(settings.auto_extend_duration) || 0;
+      Number(parsedSettings.auto_extend_duration) || 0;
     sanitizedSettings.reserve_price =
-      Number(settings?.reserve_price) || item.starting_bid || 0;
+      Number(parsedSettings?.reserve_price) || item.starting_bid || 0;
   } else {
     throw new apiError(400, "Unsupported auction type");
   }
@@ -158,19 +168,15 @@ const createAuction = asyncHandler(async (req, res) => {
       auction_description: auction_description || "",
       auction_start_time: startTime,
       auction_end_time: endTime,
+      hint: hint || "",
       is_invite_only: !!is_invite_only,
       banner_image: req.file?.path,
       settings: sanitizedSettings,
     });
 
-    console.log(
-      "createAuction: Generated invite_code:",
-      newAuction.invite_code
-    );
-
     await newAuction.save();
 
-    // ✅ Update item(s) status to "in_auction"
+    // Update item(s) status to "in_auction"
     if (sanitizedSettings.item_ids?.length) {
       await Item.updateMany(
         { _id: { $in: sanitizedSettings.item_ids } },
@@ -178,32 +184,18 @@ const createAuction = asyncHandler(async (req, res) => {
       );
     }
 
-    // Optionally: log item status change
-    console.log(`Items moved to 'in_auction':`, sanitizedSettings.item_ids);
-
-    const session = await mongoose
-      .model("AuctionSession")
-      .findOne({ auction_id: newAuction._id })
-      .lean();
-
+    // Invalidate relevant caches
+    await redisClient.del(`auctions:all:*`); // Simplified for now; optimize later
     await redisClient.del("auctions:all");
 
     const responseData = {
       auction: newAuction.toObject(),
-      session: session || null,
+      session: null, // Remove AuctionSession lookup if not needed
     };
-
-    console.log("createAuction: Response data:", responseData);
 
     return res
       .status(201)
-      .json(
-        new APIResponse(
-          201,
-          responseData,
-          "Auction and session created successfully"
-        )
-      );
+      .json(new APIResponse(201, responseData, "Auction created successfully"));
   } catch (error) {
     if (error.name === "ValidationError") {
       const messages = Object.values(error.errors)
@@ -211,7 +203,6 @@ const createAuction = asyncHandler(async (req, res) => {
         .join(", ");
       throw new apiError(400, `Auction validation failed: ${messages}`);
     }
-    console.error("createAuction: Unexpected error:", error);
     throw new apiError(500, `Failed to create auction: ${error.message}`);
   }
 });
@@ -220,14 +211,29 @@ const getAllAuctions = asyncHandler(async (req, res) => {
     search,
     type,
     status,
-    sort = "starting-soon", // Default from frontend
+    sort = "newest",
     page: pageStr = "1",
-    limit: limitStr = "10", // Default limit
+    limit: limitStr = "10",
   } = req.query;
 
   const page = parseInt(pageStr, 10) || 1;
   const limit = parseInt(limitStr, 10) || 10;
   const skip = (page - 1) * limit;
+
+  // Create a sorted query string for cache key
+  const sortedQuery = Object.keys(req.query)
+    .sort()
+    .reduce((obj, key) => {
+      obj[key] = req.query[key];
+      return obj;
+    }, {});
+  const cacheKey = `auctions:all:${JSON.stringify(sortedQuery)}`;
+
+  // Check cache first
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
 
   // Build query object
   const query = { deletedAt: null };
@@ -242,11 +248,24 @@ const getAllAuctions = asyncHandler(async (req, res) => {
 
   // Type filter (find AuctionType _id by type_name)
   if (type && type !== "all") {
-    const auctionType = await AuctionType.findOne({ type_name: type }).lean();
+    const cacheTypeKey = `auctionType:${type}`;
+    let auctionType = await redisClient.get(cacheTypeKey);
+    if (!auctionType) {
+      auctionType = await AuctionType.findOne({ type_name: type }).lean();
+      if (auctionType) {
+        await redisClient.setEx(
+          cacheTypeKey,
+          86400,
+          JSON.stringify(auctionType)
+        ); // Cache for 24 hours
+      }
+    } else {
+      auctionType = JSON.parse(auctionType);
+    }
+
     if (auctionType) {
       query.auctionType_id = auctionType._id;
     } else {
-      // If invalid type, return empty
       return res
         .status(200)
         .json(
@@ -262,7 +281,7 @@ const getAllAuctions = asyncHandler(async (req, res) => {
   // Status filter
   if (status && status !== "all") {
     if (status === "ended") {
-      query.auction_status = { $in: ["completed", "cancelled"] }; // Map 'ended' to completed/cancelled
+      query.auction_status = { $in: ["completed", "cancelled"] };
     } else {
       query.auction_status = status;
     }
@@ -287,41 +306,118 @@ const getAllAuctions = asyncHandler(async (req, res) => {
       sortObj = { "settings.unique_bidders": -1 };
       break;
     case "highest-bid":
-      // This requires aggregation for max bid across items; simplify or implement as needed
-      // For now, sort by reserve_price as fallback
-      sortObj = { "settings.reserve_price": -1 };
+      // Use aggregation for highest bid
       break;
     default:
       sortObj = { auction_start_time: 1 };
   }
 
-  // Get total count for pagination
-  const totalItems = await Auction.countDocuments(query);
+  // Use aggregation for highest-bid sort or standard query for others
+  let auctions = [];
+  let totalItems = 0;
 
-  // Fetch auctions with filters, sort, pagination
-  const auctions = await Auction.find(query)
-    .sort(sortObj)
-    .skip(skip)
-    .limit(limit)
-    .populate("auctionType_id")
-    .populate("auctioneer_id", "username")
-    .lean();
+  if (sort === "highest-bid") {
+    const pipeline = [
+      { $match: query },
+      {
+        $lookup: {
+          from: "items",
+          localField: "settings.item_ids",
+          foreignField: "_id",
+          as: "items",
+        },
+      },
+      {
+        $lookup: {
+          from: "bids",
+          localField: "settings.item_ids",
+          foreignField: "item_id",
+          as: "bids",
+        },
+      },
+      {
+        $addFields: {
+          maxBid: {
+            $max: [
+              { $ifNull: ["$bids.amount", 0] },
+              { $ifNull: ["$settings.reserve_price", 0] },
+            ],
+          },
+        },
+      },
+      { $sort: { maxBid: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "auctiontypes",
+          localField: "auctionType_id",
+          foreignField: "_id",
+          as: "auctionType_id",
+        },
+      },
+      { $unwind: "$auctionType_id" },
+      {
+        $lookup: {
+          from: "users",
+          localField: "auctioneer_id",
+          foreignField: "_id",
+          as: "auctioneer_id",
+        },
+      },
+      { $unwind: "$auctioneer_id" },
+      {
+        $project: {
+          auction_title: 1,
+          auction_description: 1,
+          auctionType_id: { type_name: 1, description: 1, is_active: 1 },
+          auctioneer_id: { username: 1, email: 1 },
+          auction_status: 1,
+          auction_start_time: 1,
+          auction_end_time: 1,
+          hint: 1,
+          banner_image: 1,
+          is_invite_only: 1,
+          settings: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    ];
+
+    const result = await Auction.aggregate([
+      ...pipeline,
+      {
+        $facet: {
+          auctions: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ]);
+
+    auctions = result[0].auctions;
+    totalItems = result[0].totalCount[0]?.count || 0;
+  } else {
+    auctions = await Auction.find(query)
+      .sort(sortObj)
+      .skip(skip)
+      .limit(limit)
+      .populate("auctionType_id", "type_name description is_active")
+      .populate("auctioneer_id", "username")
+      .lean();
+
+    totalItems = await Auction.countDocuments(query);
+  }
 
   const totalPages = Math.ceil(totalItems / limit);
 
-  // Cache with query params
-  const cacheKey = `auctions:all:${JSON.stringify(req.query)}`;
   const response = new APIResponse(
     200,
     { auctions, totalPages, totalItems, currentPage: page },
     "Auctions retrieved successfully"
   );
 
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
-  }
-  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response)); // Cache for 1 hour
 
   return res.status(200).json(response);
 });
@@ -329,8 +425,8 @@ const getAllAuctions = asyncHandler(async (req, res) => {
 const getAuctionById = asyncHandler(async (req, res) => {
   const { auction_id } = req.params;
 
-  if (!auction_id) {
-    throw new apiError(400, "Auction ID is required");
+  if (!mongoose.Types.ObjectId.isValid(auction_id)) {
+    throw new apiError(400, "Invalid auction ID");
   }
 
   const cacheKey = `auction:${auction_id}`;
@@ -339,35 +435,52 @@ const getAuctionById = asyncHandler(async (req, res) => {
     return res.status(200).json(JSON.parse(cached));
   }
 
+  // Get the auction
   const auction = await Auction.findOne({
     _id: auction_id,
     deletedAt: null,
   })
-    .populate("auctionType_id")
+    .populate("auctionType_id", "type_name description is_active")
     .populate("auctioneer_id", "username email")
+    .populate({
+      path: "bid_history",
+      select: "bidder_id item_id amount encrypted_amount timestamp",
+      populate: { path: "bidder_id", select: "username" },
+      options: { sort: { createdAt: -1 }, limit: 50 },
+    })
     .lean();
 
   if (!auction) {
     throw new apiError(404, "Auction not found");
   }
 
-  // Get items for this auction
-  const items = await Item.find({
-    _id: { $in: auction.settings.item_ids },
-  }).lean();
+  // Get the item documents
+  const itemIds = auction.settings?.item_ids || [];
+  const items = await Item.find({ _id: { $in: itemIds } }).lean();
 
-  // Get bidding history
-  const bidHistory = await Bid.find({ auction_id })
-    .sort({ createdAt: -1 })
-    .limit(50) // Limit to recent 50 bids
-    .populate("bidder_id", "username")
+  // Get related images from ItemImages
+  const images = await ItemImages.find({ item_id: { $in: itemIds } })
+    .sort({ is_primary: -1, order: 1 })
     .lean();
 
-  // Get current bids for each item (only for non-sealed auctions)
-  let itemsWithBids = items;
+  // Group images by item_id
+  const imageMap = images.reduce((acc, img) => {
+    const key = img.item_id.toString();
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(img);
+    return acc;
+  }, {});
+
+  // Add images to each item
+  let itemsWithExtras = items.map((item) => ({
+    ...item,
+    images: imageMap[item._id.toString()] || [],
+  }));
+
+  // For non-sealed auctions: calculate live bid stats
   if (auction.auctionType_id.type_name !== "sealed_bid") {
-    itemsWithBids = await Promise.all(
-      items.map(async (item) => {
+    itemsWithExtras = await Promise.all(
+      itemsWithExtras.map(async (item) => {
         const highestBid = await Bid.findOne({
           auction_id,
           item_id: item._id,
@@ -387,21 +500,32 @@ const getAuctionById = asyncHandler(async (req, res) => {
         };
       })
     );
+  } else {
+    // Hide amounts in sealed bids if auction is still running
+    auction.bid_history = auction.bid_history.map((bid) => ({
+      ...bid,
+      amount: auction.auction_status === "completed" ? bid.amount : undefined,
+      encrypted_amount: undefined,
+      bidder_username: bid.bidder_id?.username || "Anonymous",
+      bidder_id: bid.bidder_id?._id,
+    }));
   }
+
+  // Standardize bid_history for frontend
+  auction.bid_history = auction.bid_history.map((bid) => ({
+    bidder_id: bid.bidder_id,
+    bidder_username: bid.bidder_username,
+    amount: bid.amount,
+    item_id: bid.item_id,
+    timestamp: bid.timestamp,
+  }));
 
   const response = new APIResponse(
     200,
     {
       auction: {
         ...auction,
-        items: itemsWithBids,
-        bid_history: bidHistory.map((bid) => ({
-          bidder_id: bid.bidder_id._id,
-          bidder_username: bid.bidder_id.username || "Anonymous",
-          amount: bid.amount,
-          item_id: bid.item_id,
-          timestamp: bid.createdAt,
-        })),
+        items: itemsWithExtras,
       },
     },
     "Auction retrieved successfully"
@@ -414,8 +538,8 @@ const getAuctionById = asyncHandler(async (req, res) => {
 const getAuctionSummary = asyncHandler(async (req, res) => {
   const { auction_id } = req.params;
 
-  if (!auction_id) {
-    throw new apiError(400, "Auction ID is required");
+  if (!mongoose.Types.ObjectId.isValid(auction_id)) {
+    throw new apiError(400, "Invalid auction ID");
   }
 
   const cacheKey = `auction:summary:${auction_id}`;
@@ -438,7 +562,6 @@ const getAuctionSummary = asyncHandler(async (req, res) => {
 
   // Get basic statistics
   const totalBids = await Bid.countDocuments({ auction_id });
-  const uniqueBidders = await Bid.distinct("bidder_id", { auction_id });
   const totalItems = auction.settings.item_ids?.length || 0;
 
   // Calculate total value and sold items
@@ -472,13 +595,17 @@ const getAuctionSummary = asyncHandler(async (req, res) => {
       total_items: totalItems,
       sold_items: soldItems.length,
       total_bids: totalBids,
-      unique_bidders: uniqueBidders.length,
+      unique_bidders: auction.settings.unique_bidders || 0, // Use stored value
       total_value: totalValue,
     },
     recent_activity: recentBids.map((bid) => ({
       bidder: bid.bidder_id?.username || "Anonymous",
       item: bid.item_id?.item_name || "Unknown",
-      amount: bid.amount,
+      amount:
+        auction.auctionType_id.type_name === "sealed_bid" &&
+        auction.auction_status !== "completed"
+          ? undefined
+          : bid.amount,
       timestamp: bid.createdAt,
     })),
   };
@@ -573,6 +700,11 @@ const getAuctionPreview = asyncHandler(async (req, res) => {
 
 const getAuctionLeaderboard = asyncHandler(async (req, res) => {
   const { auction_id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(auction_id)) {
+    throw new apiError(400, "Invalid auction ID");
+  }
+
   const cacheKey = `leaderboard:${auction_id}`;
   const cached = await redisClient.get(cacheKey);
   if (cached) {
@@ -630,15 +762,21 @@ const placeSealedBid = asyncHandler(async (req, res) => {
     throw new apiError(400, "Auction ID, item ID, and amount are required");
   }
 
-  const dbSession = await mongoose.startSession();
-  dbSession.startTransaction();
+  if (!mongoose.Types.ObjectId.isValid(req.user._id)) {
+    throw new apiError(401, "Invalid user ID");
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
+    console.log("placeSealedBid: Starting transaction for auction:", auction_id);
+
     const auction = await Auction.findOne({
       _id: auction_id,
       auction_status: "active",
-      "settings.item_ids": item_id,
-    }).session(dbSession);
+      "settings.item_ids": { $in: [item_id] }, // ✅ Fixed: handles array correctly
+    }).session(session);
 
     if (!auction) {
       throw new apiError(404, "Auction or item not found");
@@ -648,19 +786,28 @@ const placeSealedBid = asyncHandler(async (req, res) => {
       throw new apiError(403, "Invalid invite code");
     }
 
-    if (new Date() > auction.settings.sealed_bid_deadline) {
+    const now = Date.now();
+    const deadline = new Date(auction.settings.sealed_bid_deadline).getTime();
+
+    if (now > deadline) {
+      await Auction.findByIdAndUpdate(
+        auction_id,
+        { auction_status: "completed" },
+        { session }
+      );
       throw new apiError(400, "Sealed bid deadline has passed");
     }
 
-    const item = await Item.findById(item_id).lean();
+    const item = await Item.findById(item_id).session(session).lean();
     if (!item) throw new apiError(404, "Item not found");
 
-    const minBid = Math.max(
-      auction.settings.reserve_price || 0,
-      item.starting_bid || 0
-    );
-    if (amount < minBid) {
-      throw new apiError(400, `Bid amount must be at least ${minBid}`);
+    const hasBidBefore = await Bid.exists({
+      auction_id,
+      bidder_id: req.user._id,
+    }).session(session);
+
+    if (hasBidBefore) {
+      throw new apiError(400, "You have already placed a sealed bid");
     }
 
     const encryptedAmount = encryptAmount(amount);
@@ -672,38 +819,40 @@ const placeSealedBid = asyncHandler(async (req, res) => {
           item_id,
           bidder_id: req.user._id,
           encrypted_amount: encryptedAmount,
+          timestamp: new Date(),
         },
       ],
-      { session: dbSession }
+      { session }
     );
 
-    const hasBidBefore = await Bid.exists({
-      auction_id,
-      bidder_id: req.user._id,
-    }).session(dbSession);
+    console.log(
+      `placeSealedBid: hasBidBefore=${hasBidBefore}, bidder_id=${req.user._id}, auction_id=${auction_id}, new_bid_id=${bid[0]._id}`
+    );
 
     const update = {
       $inc: {
         "settings.bid_count": 1,
+        "settings.unique_bidders": 1,
+      },
+      $push: {
+        bid_history: bid[0]._id,
       },
     };
-    if (!hasBidBefore) {
-      update.$inc["settings.unique_bidders"] = 1;
-    }
 
-    await Auction.findByIdAndUpdate(auction_id, update, { session: dbSession });
+    await Auction.findByIdAndUpdate(auction_id, update, { session });
 
-    await dbSession.commitTransaction();
+    await session.commitTransaction();
+    console.log("placeSealedBid: Transaction committed for auction:", auction_id);
+
     return res
       .status(201)
-      .json(
-        new APIResponse(201, { bid: bid[0] }, "Sealed bid placed successfully")
-      );
+      .json(new APIResponse(201, { bid: bid[0] }, "Sealed bid placed successfully"));
   } catch (error) {
-    await dbSession.abortTransaction();
+    await session.abortTransaction();
+    console.error("placeSealedBid: Transaction aborted for auction:", auction_id, error);
     throw error;
   } finally {
-    dbSession.endSession();
+    session.endSession();
   }
 });
 
@@ -715,9 +864,8 @@ const revealSealedBids = asyncHandler(async (req, res) => {
 
   try {
     const auction = await Auction.findOne({
-      _id: auction_id,
-      auction_status: "active",
-    }).session(dbSession);
+  _id: new mongoose.Types.ObjectId(auction_id),
+}).session(dbSession);
 
     if (!auction) {
       throw new apiError(404, "Sealed bid auction not found");
@@ -780,6 +928,11 @@ const revealSealedBids = asyncHandler(async (req, res) => {
     auction.auction_status = "completed";
     await auction.save({ session: dbSession });
 
+    await redisClient.del(`auction:${auction_id}`);
+    await redisClient.del(`auction:summary:${auction_id}`);
+    await redisClient.del(`auction:preview:${auction_id}`);
+    await redisClient.del(`leaderboard:${auction_id}`);
+
     await dbSession.commitTransaction();
     return res
       .status(200)
@@ -801,10 +954,15 @@ const placeTimedBid = asyncHandler(async (req, res) => {
     throw new apiError(400, "Auction ID, item ID, and amount are required");
   }
 
+  if (!mongoose.Types.ObjectId.isValid(req.user._id)) {
+    throw new apiError(401, "Invalid user ID");
+  }
+
   const dbSession = await mongoose.startSession();
   dbSession.startTransaction();
 
   try {
+    // Fetch auction with validation
     const auction = await Auction.findOne({
       _id: auction_id,
       auction_status: "active",
@@ -823,22 +981,30 @@ const placeTimedBid = asyncHandler(async (req, res) => {
     const endTime =
       auction.settings.extended_end_time || auction.auction_end_time;
     if (now > endTime) {
+      await Auction.findByIdAndUpdate(
+        auction_id,
+        { auction_status: "completed" },
+        { session: dbSession }
+      );
       throw new apiError(400, "Auction has ended");
     }
 
+    // Fetch item
     const item = await Item.findById(item_id).session(dbSession);
     if (!item) throw new apiError(404, "Item not found");
 
+    // Validate bid amount
     const highestBid = await Bid.findOne({ item_id })
       .sort({ amount: -1 })
       .session(dbSession);
     const minValidBid =
       (highestBid?.amount || item.starting_bid) +
-      auction.settings.min_bid_increment;
+      (auction.settings.min_bid_increment || 1);
     if (amount < minValidBid) {
       throw new apiError(400, `Bid must be at least ${minValidBid}`);
     }
 
+    // Create new bid
     const bid = await Bid.create(
       [
         {
@@ -846,44 +1012,64 @@ const placeTimedBid = asyncHandler(async (req, res) => {
           item_id,
           bidder_id: req.user._id,
           amount,
+          timestamp: new Date(),
         },
       ],
       { session: dbSession }
     );
 
+    // Update item with current bid and highest bidder
     await Item.findByIdAndUpdate(
       item_id,
-      { current_bid: amount },
+      {
+        current_bid: amount,
+        highest_bidder: req.user._id,
+        bid_count: (item.bid_count || 0) + 1,
+      },
       { session: dbSession }
     );
 
+    // Check for existing bids by this user, excluding the current bid
     const hasBidBefore = await Bid.exists({
       auction_id,
       bidder_id: req.user._id,
+      _id: { $ne: bid[0]._id },
     }).session(dbSession);
 
+    console.log(
+      `placeTimedBid: hasBidBefore=${hasBidBefore}, bidder_id=${req.user._id}, auction_id=${auction_id}, new_bid_id=${bid[0]._id}`
+    );
+
+    // Update auction with bid count, unique bidders, and bid history
     const update = {
       $inc: {
         "settings.bid_count": 1,
+        "settings.unique_bidders": hasBidBefore ? 0 : 1,
+      },
+      $push: {
+        bid_history: bid[0]._id, // Store Bid ObjectId
       },
     };
-    if (!hasBidBefore) {
-      update.$inc["settings.unique_bidders"] = 1;
-    }
+
     await Auction.findByIdAndUpdate(auction_id, update, { session: dbSession });
 
     await dbSession.commitTransaction();
 
+    // Fetch user for bidder_username
     const user = await User.findById(req.user._id).select("username").lean();
     const bidder_username = user?.username || "Anonymous";
 
-    auctionNamespace.to(auction_id.toString()).emit("timeBidPlaced", {
-      item_id,
-      amount,
-      bidder_id: req.user._id,
-      bidder_username,
-      bid: bid[0],
-    });
+    // Fetch the full bid with populated bidder_id for socket event
+    const fullBid = await Bid.findById(bid[0]._id)
+      .populate("bidder_id", "username")
+      .lean();
+    const bidData = {
+      ...fullBid,
+      bidder_username: fullBid.bidder_id?.username || "Anonymous",
+    };
+
+    // Emit socket event
+    auctionNamespace.to(auction_id.toString()).emit("timeBidPlaced", bidData);
 
     // Invalidate cache
     await redisClient.del(`auction:${auction_id}`);
@@ -895,6 +1081,7 @@ const placeTimedBid = asyncHandler(async (req, res) => {
       );
   } catch (error) {
     await dbSession.abortTransaction();
+    console.error("placeTimedBid: Transaction aborted", error);
     throw error;
   } finally {
     dbSession.endSession();
@@ -918,6 +1105,142 @@ const getMyAuctions = asyncHandler(async (req, res) => {
   }
 });
 
+const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
+  const { auction_id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(auction_id)) {
+    throw new apiError(400, "Invalid auction ID");
+  }
+
+  const cacheKey = `sealed_leaderboard:${auction_id}`;
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
+  const auction = await Auction.findOne({
+    _id: auction_id,
+    auction_status: "completed",
+  }).lean();
+
+  if (!auction) {
+    throw new apiError(404, "Auction not found or not completed");
+  }
+
+  const itemId = auction.settings.item_ids[0]; // sealed bid is for 1 item
+  const bids = await Bid.find({ auction_id, item_id: itemId }).lean();
+
+  const decryptedBids = bids.map((bid) => {
+    let amount;
+    try {
+      amount = decryptAmount(bid.encrypted_amount);
+    } catch {
+      amount = null;
+    }
+    return {
+      bidder_id: bid.bidder_id,
+      amount,
+      is_winner: bid.is_winner || false,
+      bid_id: bid._id, // Keep bid ID for reference
+    };
+  });
+
+  const sortedBids = decryptedBids
+    .filter((b) => b.amount !== null)
+    .sort((a, b) => b.amount - a.amount) // highest first for display
+    .reverse(); // Actually, let's keep highest first
+
+  // SAFETY CHECK: Ensure only one winner
+  const winnersFromDB = sortedBids.filter(bid => bid.is_winner);
+  
+  if (winnersFromDB.length > 1) {
+    console.warn(`Multiple winners detected for auction ${auction_id}:`, winnersFromDB);
+    
+    // Reset all winners first
+    sortedBids.forEach(bid => bid.is_winner = false);
+    
+    // Find the actual winner based on your business logic
+    // Option 1: If you have a target value in auction settings
+    if (auction.settings?.target_value) {
+      const targetValue = auction.settings.target_value;
+      let closestBid = null;
+      let minDifference = Infinity;
+      
+      sortedBids.forEach(bid => {
+        const difference = Math.abs(bid.amount - targetValue);
+        if (difference < minDifference) {
+          minDifference = difference;
+          closestBid = bid;
+        }
+      });
+      
+      if (closestBid) {
+        closestBid.is_winner = true;
+        console.log(`Selected winner for auction ${auction_id}: ${closestBid.bidder_id} with $${closestBid.amount} (target: $${targetValue})`);
+      }
+    }
+    // Option 2: If no target value, use the first winner from DB (or implement your own logic)
+    else {
+      const actualWinner = winnersFromDB[0];
+      const winnerIndex = sortedBids.findIndex(bid => bid.bid_id.toString() === actualWinner.bid_id.toString());
+      if (winnerIndex !== -1) {
+        sortedBids[winnerIndex].is_winner = true;
+        console.log(`Selected first winner for auction ${auction_id}: ${actualWinner.bidder_id}`);
+      }
+    }
+    
+    // Update the database to fix the inconsistency
+    try {
+      // First, reset all bids to not winner
+      await Bid.updateMany(
+        { auction_id, item_id: itemId },
+        { is_winner: false }
+      );
+      
+      // Then set the correct winner
+      const correctWinner = sortedBids.find(bid => bid.is_winner);
+      if (correctWinner) {
+        await Bid.updateOne(
+          { _id: correctWinner.bid_id },
+          { is_winner: true }
+        );
+        console.log(`Fixed winner in database for auction ${auction_id}`);
+      }
+    } catch (error) {
+      console.error(`Failed to fix winner in database for auction ${auction_id}:`, error);
+    }
+  }
+
+  const leaderboard = await Promise.all(
+    sortedBids.map(async (bid) => {
+      const user = await User.findById(bid.bidder_id).select("username").lean();
+      return {
+        bidder_username: user?.username || "Anonymous",
+        amount: bid.amount,
+        is_winner: bid.is_winner,
+      };
+    })
+  );
+
+  const stats = {
+    totalBids: leaderboard.length,
+    averageBid:
+      leaderboard.length > 0
+        ? leaderboard.reduce((acc, b) => acc + b.amount, 0) / leaderboard.length
+        : 0,
+    highestBid: leaderboard.length > 0 ? Math.max(...leaderboard.map(b => b.amount)) : 0,
+  };
+
+  const response = new APIResponse(
+    200,
+    { leaderboard, stats },
+    "Sealed bid leaderboard retrieved"
+  );
+
+  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
+  return res.status(200).json(response);
+});
+
 export {
   createAuction,
   getAuctionById,
@@ -929,4 +1252,6 @@ export {
   placeTimedBid,
   getAuctionLeaderboard,
   getMyAuctions,
+  getSealedBidLeaderboard,
+  decryptAmount
 };

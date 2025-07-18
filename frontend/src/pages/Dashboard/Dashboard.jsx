@@ -155,7 +155,7 @@ const Dashboard = () => {
     });
 
     try {
-      if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(role)) {
+      if (activeTab === "auctioneer" && ["admin", "user"].includes(role)) {
         console.log("Fetching data for auctioneer...");
         const [itemsRes, auctionsRes] = await Promise.all([
           retryRequest(() => getMyItems()).catch((err) => {

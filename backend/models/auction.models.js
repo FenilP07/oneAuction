@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import AuctionType from "./auctionTypes.models.js";
-import { v4 as uuidv4 } from 'uuid';  
+import { v4 as uuidv4 } from "uuid";
 
 const auctionSchema = new mongoose.Schema(
   {
@@ -38,7 +38,7 @@ const auctionSchema = new mongoose.Schema(
     },
     auction_status: {
       type: String,
-      enum: ["upcoming", "active","paused", "completed", "cancelled"],
+      enum: ["upcoming", "active", "paused", "completed", "cancelled"],
       default: "upcoming",
       index: true,
     },
@@ -51,22 +51,32 @@ const auctionSchema = new mongoose.Schema(
       type: Date,
       required: true,
     },
+    hint: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: "",
+      validate: {
+        validator: (v) => !v || v.length > 0,
+        message: "Hint cannot be empty if provided",
+      },
+    },
     banner_image: {
       type: String,
       trim: true,
       default: null,
       validate: {
-        validator: (v) =>
-          !v || /^https?:\/\/.+\.(jpg|jpeg|png|webp)$/i.test(v),
-        message: "Banner image must be a valid URL ending in .jpg, .jpeg, .png, or .webp",
+        validator: (v) => !v || /^https?:\/\/.+\.(jpg|jpeg|png|webp)$/i.test(v),
+        message:
+          "Banner image must be a valid URL ending in .jpg, .jpeg, .png, or .webp",
       },
     },
     is_invite_only: {
       type: Boolean,
-      default: false, 
-      index: true, 
+      default: false,
+      index: true,
     },
-     invite_code: {
+    invite_code: {
       type: String,
       default: () => uuidv4().slice(0, 8).toUpperCase(),
       index: true,
@@ -91,12 +101,12 @@ const auctionSchema = new mongoose.Schema(
           message: "Minimum bid increment must be positive",
         },
       },
-       reserve_price: {
+      reserve_price: {
         type: Number,
         default: 0,
         min: 0,
       },
-       bid_count: {
+      bid_count: {
         type: Number,
         default: 0,
       },
@@ -104,67 +114,82 @@ const auctionSchema = new mongoose.Schema(
         type: Number,
         default: 0,
       },
-      // sealed_bid_deadline: {
-      //   type: Date,
-      //   default: null,
-      // },
-      // auto_extend_duration: {
-      //   type: Number,
-      //   default: 0,
-      // },
+      sealed_bid_deadline: {
+        type: Date,
+        default: null,
+      },
+      auto_extend_duration: {
+        type: Number,
+        default: 0,
+      },
     },
     deletedAt: {
       type: Date,
       default: null,
       index: true,
     },
+    bid_history: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: "Bid",
+    default: [],
+  }, 
   },
   { timestamps: true }
 );
 
 // Compound index for overlapping auction checks
 auctionSchema.index(
-  { auctioneer_id: 1, auction_start_time: 1, auction_end_time: 1, deletedAt: 1 },
+  {
+    auctioneer_id: 1,
+    auction_start_time: 1,
+    auction_end_time: 1,
+    deletedAt: 1,
+  },
   { partialFilterExpression: { deletedAt: null } }
 );
 
 // Pre-save validation
 auctionSchema.pre("save", async function (next) {
   const auctionType = await AuctionType.findById(this.auctionType_id);
-  if (!auctionType) throw new Error("Invalid auction type");
+  if (!auctionType) return next(new Error("Invalid auction type"));
+  if (auctionType.type_name === "sealed_bid" && this.auction_status === "completed") {
+    return next(); 
+  }
 
   // Time validation
   if (this.auction_start_time >= this.auction_end_time) {
-    throw new Error("End time must be after start time");
+    return next(new Error("End time must be after start time"));
   }
 
-  // Check for overlapping auctions
-  const overlappingAuctions = await mongoose.model("Auction").countDocuments({
-    auctioneer_id: this.auctioneer_id,
-    deletedAt: null,
-    $or: [
-      {
-        auction_start_time: { $lte: this.auction_end_time },
-        auction_end_time: { $gte: this.auction_start_time },
-      },
-    ],
-    _id: { $ne: this._id },
-  });
-  if (overlappingAuctions > 0) {
-    throw new Error("Auctioneer has conflicting auction times");
+  if (auctionType.type_name === "live") {
+    const overlappingAuctions = await mongoose.model("Auction").countDocuments({
+      auctioneer_id: this.auctioneer_id,
+      deletedAt: null,
+      $or: [
+        {
+          auction_start_time: { $lte: this.auction_end_time },
+          auction_end_time: { $gte: this.auction_start_time },
+        },
+      ],
+      _id: { $ne: this._id },
+    });
+
+    if (overlappingAuctions > 0) {
+      return next(new Error("Auctioneer has conflicting auction times"));
+    }
   }
 
   // Type-specific validations
   if (auctionType.type_name === "live") {
     if (!this.settings.item_ids?.length) {
-      throw new Error("Live auctions require at least one item");
+      return next(new Error("Live auctions require at least one item"));
     }
     const itemsCount = await mongoose.model("Item").countDocuments({
       _id: { $in: this.settings.item_ids },
       status: "available",
     });
     if (itemsCount !== this.settings.item_ids.length) {
-      throw new Error("One or more items are unavailable");
+      return next(new Error("One or more items are unavailable"));
     }
     if (!this.settings.current_item_id) {
       this.settings.current_item_id = this.settings.item_ids[0];
@@ -174,11 +199,25 @@ auctionSchema.pre("save", async function (next) {
       this.settings.sealed_bid_deadline = this.auction_end_time;
     }
     if (this.settings.item_ids?.length !== 1) {
-      throw new Error("Sealed bid auctions require exactly one item");
+      return next(new Error("Sealed bid auctions require exactly one item"));
+    }
+    const item = await mongoose.model("Item").findOne({
+      _id: this.settings.item_ids[0],
+      status: "available",
+    });
+    if (!item) {
+      return next(new Error("Item is unavailable"));
     }
   } else if (auctionType.type_name === "single_timed_item") {
     if (this.settings.item_ids?.length !== 1) {
-      throw new Error("Single timed item auctions require exactly one item");
+      return next(new Error("Single timed item auctions require exactly one item"));
+    }
+    const item = await mongoose.model("Item").findOne({
+      _id: this.settings.item_ids[0],
+      status: "available",
+    });
+    if (!item) {
+      return next(new Error("Item is unavailable"));
     }
   }
 
