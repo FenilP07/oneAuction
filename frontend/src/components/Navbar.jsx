@@ -108,7 +108,7 @@ function Navbar() {
                   {user.profile?.avatarUrl ? (
                     <img
                       src={user.profile.avatarUrl}
-                      alt={`${user.profile.firstName}'s avatar`}
+                    //   alt={`${user.profile.firstName}'s avatar`}
                       className="rounded-circle me-2"
                       width="30"
                       height="30"

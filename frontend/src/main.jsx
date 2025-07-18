@@ -19,6 +19,7 @@ import ItemDetail from "./pages/Admin/Item/ItemDetail.jsx";
 import AboutUs from "./pages/AboutUs/AboutUs.jsx";
 import BrowseAuctions from "./pages/BrowseAuctions/BrowseAuctions.jsx";
 import JoinAuction from "./pages/JoinAuction/JoinAuction.jsx";
+import LeaderboardPage from "./pages/LeaderboardPage/LeaderboardPage.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="aboutUs" element={<AboutUs />} />
           <Route path="browseAuctions" element={<BrowseAuctions />} />
           <Route path="joinAuction/:auctionType/:auction_id" element={<JoinAuction />} />
+          <Route path="leaderboardPage/:auctionId" element={<LeaderboardPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -436,16 +436,16 @@ const BrowseAuctions = () => {
   return (
     <>
       <Navbar />
-      <div className="container-fluid bg-light py-4">
+      <div className="container-fluid bgSecond py-4">
         <div className="container">
           <div className="d-flex justify-content-between align-items-center mb-4">
-            <h2 className="fw-bold mb-0">
+            <h2 className="fw-bold mb-0 textSecond">
               <FontAwesomeIcon icon={faGavel} className="me-2" />
               Browse Auctions
             </h2>
             <div className="d-flex gap-2">
               <button
-                className="btn btn-outline-primary"
+                className="btn btnOneOut"
                 onClick={refreshAuctions}
                 title="Refresh auctions"
               >
@@ -454,7 +454,7 @@ const BrowseAuctions = () => {
               <div className="btn-group" role="group">
                 <button
                   className={`btn ${
-                    viewMode === "grid" ? "btn-primary" : "btn-outline-primary"
+                    viewMode === "grid" ? "btnOne" : "btnOneOut"
                   }`}
                   onClick={() => handleViewModeChange("grid")}
                   title="Grid view"
@@ -463,7 +463,7 @@ const BrowseAuctions = () => {
                 </button>
                 <button
                   className={`btn ${
-                    viewMode === "list" ? "btn-primary" : "btn-outline-primary"
+                    viewMode === "list" ? "btnOne" : "btnOneOut"
                   }`}
                   onClick={() => handleViewModeChange("list")}
                   title="List view"
@@ -474,7 +474,7 @@ const BrowseAuctions = () => {
             </div>
           </div>
 
-          <div className="card mb-4 shadow-sm">
+          <div className="card mb-4 shadow-sm bgOne">
             <div className="card-body">
               <div className="row g-3">
                 <div className="col-md-3">
@@ -562,7 +562,7 @@ const BrowseAuctions = () => {
                 </div>
                 <div className="col-md-2">
                   <button
-                    className="btn btn-outline-secondary w-100"
+                    className="btn btnSecondOut w-100"
                     onClick={resetFilters}
                   >
                     <FontAwesomeIcon icon={faSyncAlt} className="me-1" />
@@ -571,11 +571,11 @@ const BrowseAuctions = () => {
                 </div>
               </div>
               <div className="mt-3 d-flex justify-content-between align-items-center">
-                <small className="text-muted">
+                <small className="textOne">
                   Showing {auctions.length} of {totalItems} auctions
                   {searchTerm && ` for "${searchTerm}"`}
                 </small>
-                <small className="text-muted">
+                <small className="textOne">
                   Page {currentPage} of {totalPages}
                 </small>
               </div>
@@ -630,7 +630,7 @@ const BrowseAuctions = () => {
                           {getAuctionTypeName(auction.auctionType_id)}
                         </span>
                         <button
-                          className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
+                          className="btn btn-link position-absolute top-100 end-0 mt-2"
                           onClick={() => toggleFavorite(auction._id)}
                           title={
                             favorites.includes(auction._id)
@@ -666,10 +666,10 @@ const BrowseAuctions = () => {
                         ></div>
                       </div>
                       <div className="card-body">
-                        <h5 className="card-title">
+                        <h3 className="card-title fw-bold">
                           {auction.auction_title || "Untitled Auction"}
-                        </h5>
-                        <p className="card-text text-muted">
+                        </h3>
+                        <p className="card-text ">
                           {auction.auction_description?.slice(
                             0,
                             viewMode === "list" ? 200 : 100
@@ -693,9 +693,9 @@ const BrowseAuctions = () => {
                           >
                             <div>
                               <small className="text-muted">
-                                Time Remaining:
+                                Time Remaining
                               </small>
-                              <div className="fw-bold text-primary">
+                              <div className="fw-bold text-danger">
                                 {timerTexts[auction._id] || "--"}
                               </div>
                             </div>
@@ -704,13 +704,13 @@ const BrowseAuctions = () => {
                                 viewMode === "list" ? "text-start" : "text-end"
                               }
                             >
-                              <small className="text-muted">Bidders:</small>
+                              <small className="text-muted">Bidders</small>
                               <div>
+                                {auction.settings?.unique_bidders || 0}
                                 <FontAwesomeIcon
                                   icon={faUsers}
-                                  className="me-1"
+                                  className="ms-3"
                                 />
-                                {auction.settings?.unique_bidders || 0}
                               </div>
                             </div>
                           </div>
@@ -724,7 +724,7 @@ const BrowseAuctions = () => {
                                 ? "Current Bid"
                                 : "Starting Bid"}
                             </small>
-                            <div className="fw-bold">
+                            <div className="fw-bold fs-4 text-success">
                               $
                               {(auction.auctionType_id?.type_name?.toLowerCase() ===
                                 "single_timed_item" &&
@@ -751,7 +751,7 @@ const BrowseAuctions = () => {
                             ) : auction.status === "active" ? (
                               <button
                                 onClick={() => handleViewDetails(auction)}
-                                className="btn btn-sm btn-success"
+                                className="btn btn-sm btn-outline-success"
                                 disabled={!auction._id}
                               >
                                 <FontAwesomeIcon
@@ -762,9 +762,7 @@ const BrowseAuctions = () => {
                               </button>
                             ) : auction.status === "completed" ? (
                               <button
-                                onClick={() =>
-                                  fetchAuctionLeaderboard(auction._id)
-                                }
+                                onClick={() => navigate(`/leaderBoardPage/${auction._id}`)}
                                 className="btn btn-sm btn-outline-secondary"
                                 disabled={!auction._id}
                               >

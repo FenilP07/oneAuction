@@ -42,3 +42,40 @@ body {
 .textSecond{
   color: var(--textsecond) !important;
 }
+
+/* custom-outline-button.css */
+.btnOne {
+  color: #f8f9fa; /* light text */
+  background-color: var(--bgOne);
+  cursor: pointer;
+}
+
+.btnOneOut {
+  color: var(--textsecond); /* light text */
+  background-color: transparent;
+  border: 1px solid var(--textsecond);
+  cursor: pointer;
+}
+
+.btnOneOut:hover {
+  background-color: #f8f9fa;
+  color: #212529; /* dark text on hover */
+}
+
+.btnSecond {
+  color: #f8f9fa; /* light text */
+  background-color: var(--bgOne);
+  cursor: pointer;
+}
+
+.btnSecondOut {
+  color: var(--textOne); /* light text */
+  background-color: transparent;
+  border: 1px solid var(--textOne);
+  cursor: pointer;
+}
+
+.btnSecondOut:hover {
+  background-color: #f8f9fa;
+  color: #212529; /* dark text on hover */
+}

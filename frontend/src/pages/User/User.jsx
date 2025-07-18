@@ -137,24 +137,26 @@ const User = () => {
 	return (
 		<>
 			<Navbar />
-			<div className="container my-5">
+			<div className="container-fluid bgSecond p-5">
 				<section className="user-page" aria-labelledby="user-profile-title">
-					<div className="user-content text-center mb-4">
-						<div className="circular--landscape">
+					{/* <div className="row justify-content-start text-center mb-4">
+						<div className="col-md-2 circular--landscape">
 							<img
 								src={userData.avatarUrl || "/images/profile.png"}
 								alt={`${userData.firstName}'s profile picture`}
-								className="img-fluid rounded-circle" width={150}
+								className="img-fluid rounded-circle" width={130} height={150}
 							/>
 						</div>
+						<div className="col-md-2 ">
 						<h3 id="user-profile-title">
 							{userData.firstName} {userData.lastName}
 							<span> ({userData.username})</span>
 						</h3>
 						<p>{userData.email}</p>
-					</div>
+						</div>
+					</div> */}
 
-					<div className="user-edit shadow p-4 rounded">
+					<div className="user-edit  p-4 rounded">
 						<h3 className="text-center mb-4">Edit Profile</h3>
 						<form onSubmit={handleSubmit} noValidate>
 							<div className="row g-3">
@@ -229,28 +231,20 @@ const User = () => {
 							<div className="text-center mt-4">
 								<Button
 									type="submit"
-									className="btn btn-primary btn-lg me-2"
+									className="btn btn-primary me-2"
 									disabled={isLoading}
-								>
-									<>
-										Save Changes
-										{isLoading && <span className="ms-2"><Spinner /></span>}
-									</>
-								</Button>
-								<Button
+								>Save Changes</Button>
+								<Link to="/browseAuctions" className="btn btn-secondary">
+									Cancel
+								</Link>
+								{/* <Button
 									type="button"
 									className="btn btn-danger btn-lg"
 									onClick={handleLogout}
 								>
 									Logout
-								</Button>
+								</Button> */}
 							</div>
-
-							<p className="text-center mt-3">
-								<Link to="/browse" className="text-decoration-none">
-									Back to Auctions
-								</Link>
-							</p>
 						</form>
 					</div>
 				</section>
