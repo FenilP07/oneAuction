@@ -147,10 +147,11 @@ const BrowseAuctions = () => {
         const data = await getAllAuctions(queryParams);
         const mappedAuctions = data.auctions.map((auction) => ({
           ...auction,
-          status: auction.auction_status,
+          status: auction.auction_status || auction.status || "unknown",
           end_time: auction.auction_end_time,
           start_time: auction.auction_start_time,
         }));
+
         setAuctions(mappedAuctions);
         setTotalPages(data.totalPages || 1);
         setTotalItems(data.totalItems || 0);
@@ -313,41 +314,110 @@ const BrowseAuctions = () => {
       setPreviewLoading(true);
       setPreviewError(null);
       setPreviewData(null);
-      const data = await getAuctionLeaderboard(auctionId);
-      setPreviewData({
-        ...data.leaderboard,
+
+      const response = await getAuctionLeaderboard(auctionId);
+      console.log("Leaderboard response:", response);
+
+      let responseData = null;
+      let isSuccess = false;
+
+      if (response) {
+        if (response.success && response.data) {
+          responseData = response.data;
+          isSuccess = true;
+        } else if (response.statusCode === 200 && response.data) {
+          responseData = response.data;
+          isSuccess = true;
+        } else if (response.leaderboard) {
+          responseData = response;
+          isSuccess = true;
+        }
+      }
+
+      if (!isSuccess || !responseData) {
+        const errorMsg = response?.message || "Failed to fetch leaderboard";
+        throw new Error(errorMsg);
+      }
+
+      const leaderboardData = responseData.leaderboard;
+
+      if (!leaderboardData || !Array.isArray(leaderboardData)) {
+        throw new Error("Invalid leaderboard data format received from server");
+      }
+
+      if (leaderboardData.length === 0) {
+        throw new Error("No items found in this auction leaderboard");
+      }
+
+      const previewDataToSet = {
+        leaderboard: leaderboardData,
+        auction_title: responseData.auction_title || "Auction Results",
+        auction_description: responseData.auction_description || "",
+        auction_status: responseData.auction_status,
+        auction_start_time: responseData.auction_start_time,
+        auction_end_time: responseData.auction_end_time,
+        total_items: responseData.total_items || leaderboardData.length,
         auction_id: auctionId,
-        status: "ended",
+        status: responseData.auction_status || "completed",
         is_leaderboard: true,
-      });
-      setShowPreview(true);
+        message: response?.message || "Leaderboard retrieved successfully",
+      };
+
+      setPreviewData(previewDataToSet);
+      setShowPreview(true); // Only open modal on success
+      showNotification(
+        `Leaderboard loaded with ${leaderboardData.length} items`,
+        "success"
+      );
     } catch (err) {
-      const errorMessage = err.message || "Failed to fetch auction leaderboard";
+      let errorMessage = "Failed to fetch auction leaderboard";
+
+      if (err.message.includes("not found") || err.message.includes("404")) {
+        errorMessage = "Auction not found or not completed yet";
+      } else if (err.message.includes("No items found")) {
+        errorMessage = "No items found in this auction leaderboard";
+      } else if (err.message.includes("Invalid leaderboard data format")) {
+        errorMessage = "Invalid data format received from server";
+      } else if (
+        err.message.includes("Network Error") ||
+        err.message.includes("fetch")
+      ) {
+        errorMessage = "Network error - please check your connection";
+      } else if (err.message.includes("401") || err.message.includes("403")) {
+        errorMessage = "Authentication required - please log in";
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       setPreviewError(errorMessage);
       showNotification(errorMessage, "error");
       console.error("Error fetching auction leaderboard:", err);
+      console.error("Full error details:", {
+        message: err.message,
+        stack: err.stack,
+        response: err.response,
+      });
     } finally {
       setPreviewLoading(false);
     }
   };
-
   const handleViewDetails = (auction) => {
-  if (!auction || !auction._id) return;
+    if (!auction || !auction._id) return;
 
-  const type = auction.auctionType_id?.type_name?.toLowerCase();
+    const type = auction.auctionType_id?.type_name?.toLowerCase();
 
-  if (type === "sealed_bid") {
-    navigate(`/joinAuction/sealed_bid/${auction._id}`, {
-      state: { auction },
-    });
-  } else if (auction.status === "active") {
-    navigate(`/joinAuction/${type}/${auction._id}`, {
-      state: { auction },
-    });
-  } else {
-    fetchAuctionPreview(auction._id);
-  }
-};
+    if (type === "sealed_bid") {
+      navigate(`/joinAuction/sealed_bid/${auction._id}`, {
+        state: { auction },
+      });
+    } else if (auction.status === "active") {
+      navigate(`/joinAuction/${type}/${auction._id}`, {
+        state: { auction },
+      });
+    } else {
+      fetchAuctionPreview(auction._id);
+    }
+  };
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -734,11 +804,15 @@ const BrowseAuctions = () => {
                               ).toLocaleString()}
                             </div>
                           </div>
+
                           <div className="d-flex gap-2">
                             {auction.auctionType_id?.type_name ===
                             "sealed_bid" ? (
                               <button
-                                onClick={() => handleViewDetails(auction)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetails(auction);
+                                }}
                                 className="btn btn-sm btn-success"
                                 disabled={!auction._id}
                               >
@@ -752,6 +826,7 @@ const BrowseAuctions = () => {
                               <button
                                 onClick={() => handleViewDetails(auction)}
                                 className="btn btn-sm btn-outline-success"
+
                                 disabled={!auction._id}
                               >
                                 <FontAwesomeIcon
@@ -760,11 +835,12 @@ const BrowseAuctions = () => {
                                 />
                                 Bid Now
                               </button>
-                            ) : auction.status === "completed" ? (
+                            ) : auction.status === "completed" ? ( // Remove "ended" and "is_leaderboard"
                               <button
-                                onClick={() =>
-                                  fetchAuctionLeaderboard(auction._id)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fetchAuctionLeaderboard(auction._id);
+                                }}
                                 className="btn btn-sm btn-outline-secondary"
                                 disabled={!auction._id}
                               >
@@ -776,7 +852,10 @@ const BrowseAuctions = () => {
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleViewDetails(auction)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewDetails(auction);
+                                }}
                                 className="btn btn-sm btn-outline-primary"
                                 disabled={!auction._id}
                               >
@@ -788,6 +867,28 @@ const BrowseAuctions = () => {
                               </button>
                             )}
                           </div>
+
+                          <button
+                            className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent event bubbling
+                              toggleFavorite(auction._id);
+                            }}
+                            title={
+                              favorites.includes(auction._id)
+                                ? "Remove from favorites"
+                                : "Add to favorites"
+                            }
+                          >
+                            <FontAwesomeIcon
+                              icon={faHeart}
+                              className={
+                                favorites.includes(auction._id)
+                                  ? "text-danger"
+                                  : "text-muted"
+                              }
+                            />
+                          </button>
                         </div>
                       </div>
                     </div>
