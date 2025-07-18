@@ -138,7 +138,7 @@ const getAuctionPreview = async (auctionId) => {
  */
 const getAuctionLeaderboard = async (auctionId) => {
   try {
-    const response = await apiClient.get(`/auction/${auctionId}/leaderboard`);
+    const response = await apiClient.get(`/auction/leaderboard/${auctionId}`);
     return response.data.data;
   } catch (error) {
     const message =

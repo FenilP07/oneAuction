@@ -59,13 +59,13 @@ const createAuction = asyncHandler(async (req, res) => {
 
   const auctionType = await AuctionType.findById(auctionType_id).lean();
   if (auctionType.type_name === "sealed_bid") {
-  if (!hint || typeof hint !== "string" || hint.trim().length === 0) {
-    throw new apiError(400, "Hint is required for sealed bid auctions");
+    if (!hint || typeof hint !== "string" || hint.trim().length === 0) {
+      throw new apiError(400, "Hint is required for sealed bid auctions");
+    }
+    if (hint.trim().length > 200) {
+      throw new apiError(400, "Hint must be 200 characters or less");
+    }
   }
-  if (hint.trim().length > 200) {
-    throw new apiError(400, "Hint must be 200 characters or less");
-  }
-}
 
   if (!auctionType) {
     throw new apiError(404, "Auction type not found");
@@ -713,7 +713,7 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
 
   const auction = await Auction.findOne({
     _id: auction_id,
-    auction_status: "completed",
+    auction_status: "completed", // Changed from "ended" to "completed" based on your schema
   }).lean();
 
   if (!auction) {
@@ -723,6 +723,8 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
   const items = await Item.find({
     _id: { $in: auction.settings.item_ids },
   }).lean();
+
+  console.log("Items found:", items); // DEBUG - to see what fields are available
 
   const leaderboard = await Promise.all(
     items.map(async (item) => {
@@ -738,19 +740,36 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
 
       return {
         item_id: item._id,
-        item_name: item.item_name,
+        // FIXED: Use correct field names from your Item model
+        item_name: item.name, // Your model uses 'name', not 'item_name'
+        item_description: item.description, // Your model uses 'description', not 'item_description'
+        // Note: Your Item model doesn't have an image field, so removing this
+        // item_image: item.image || null, // Remove this line
         status: item.status,
-        final_bid: highestBid ? highestBid.amount : null,
+        starting_bid: item.starting_bid, // Added this useful field
+        current_bid: item.current_bid, // Added this useful field
+        final_bid: highestBid ? (highestBid.amount || highestBid.encrypted_amount) : null,
         winner: winner ? winner.username : "No winner",
+        winner_id: winner ? winner._id : null, // Added winner_id for frontend use
+        // Add bid count if you want
+        total_bids: await Bid.countDocuments({ auction_id, item_id: item._id }),
       };
     })
   );
 
   const response = new APIResponse(
     200,
-    { leaderboard },
+    {
+      leaderboard,
+      auction_title: auction.auction_title,
+      auction_status: auction.auction_status,
+      total_items: items.length,
+      auction_start_time: auction.auction_start_time,
+      auction_end_time: auction.auction_end_time,
+    },
     "Leaderboard retrieved successfully"
   );
+
   await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
   return res.status(200).json(response);
 });
@@ -770,7 +789,10 @@ const placeSealedBid = asyncHandler(async (req, res) => {
   session.startTransaction();
 
   try {
-    console.log("placeSealedBid: Starting transaction for auction:", auction_id);
+    console.log(
+      "placeSealedBid: Starting transaction for auction:",
+      auction_id
+    );
 
     const auction = await Auction.findOne({
       _id: auction_id,
@@ -842,14 +864,23 @@ const placeSealedBid = asyncHandler(async (req, res) => {
     await Auction.findByIdAndUpdate(auction_id, update, { session });
 
     await session.commitTransaction();
-    console.log("placeSealedBid: Transaction committed for auction:", auction_id);
+    console.log(
+      "placeSealedBid: Transaction committed for auction:",
+      auction_id
+    );
 
     return res
       .status(201)
-      .json(new APIResponse(201, { bid: bid[0] }, "Sealed bid placed successfully"));
+      .json(
+        new APIResponse(201, { bid: bid[0] }, "Sealed bid placed successfully")
+      );
   } catch (error) {
     await session.abortTransaction();
-    console.error("placeSealedBid: Transaction aborted for auction:", auction_id, error);
+    console.error(
+      "placeSealedBid: Transaction aborted for auction:",
+      auction_id,
+      error
+    );
     throw error;
   } finally {
     session.endSession();
@@ -864,8 +895,8 @@ const revealSealedBids = asyncHandler(async (req, res) => {
 
   try {
     const auction = await Auction.findOne({
-  _id: new mongoose.Types.ObjectId(auction_id),
-}).session(dbSession);
+      _id: new mongoose.Types.ObjectId(auction_id),
+    }).session(dbSession);
 
     if (!auction) {
       throw new apiError(404, "Sealed bid auction not found");
@@ -1151,44 +1182,53 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
     .reverse(); // Actually, let's keep highest first
 
   // SAFETY CHECK: Ensure only one winner
-  const winnersFromDB = sortedBids.filter(bid => bid.is_winner);
-  
+  const winnersFromDB = sortedBids.filter((bid) => bid.is_winner);
+
   if (winnersFromDB.length > 1) {
-    console.warn(`Multiple winners detected for auction ${auction_id}:`, winnersFromDB);
-    
+    console.warn(
+      `Multiple winners detected for auction ${auction_id}:`,
+      winnersFromDB
+    );
+
     // Reset all winners first
-    sortedBids.forEach(bid => bid.is_winner = false);
-    
+    sortedBids.forEach((bid) => (bid.is_winner = false));
+
     // Find the actual winner based on your business logic
     // Option 1: If you have a target value in auction settings
     if (auction.settings?.target_value) {
       const targetValue = auction.settings.target_value;
       let closestBid = null;
       let minDifference = Infinity;
-      
-      sortedBids.forEach(bid => {
+
+      sortedBids.forEach((bid) => {
         const difference = Math.abs(bid.amount - targetValue);
         if (difference < minDifference) {
           minDifference = difference;
           closestBid = bid;
         }
       });
-      
+
       if (closestBid) {
         closestBid.is_winner = true;
-        console.log(`Selected winner for auction ${auction_id}: ${closestBid.bidder_id} with $${closestBid.amount} (target: $${targetValue})`);
+        console.log(
+          `Selected winner for auction ${auction_id}: ${closestBid.bidder_id} with $${closestBid.amount} (target: $${targetValue})`
+        );
       }
     }
     // Option 2: If no target value, use the first winner from DB (or implement your own logic)
     else {
       const actualWinner = winnersFromDB[0];
-      const winnerIndex = sortedBids.findIndex(bid => bid.bid_id.toString() === actualWinner.bid_id.toString());
+      const winnerIndex = sortedBids.findIndex(
+        (bid) => bid.bid_id.toString() === actualWinner.bid_id.toString()
+      );
       if (winnerIndex !== -1) {
         sortedBids[winnerIndex].is_winner = true;
-        console.log(`Selected first winner for auction ${auction_id}: ${actualWinner.bidder_id}`);
+        console.log(
+          `Selected first winner for auction ${auction_id}: ${actualWinner.bidder_id}`
+        );
       }
     }
-    
+
     // Update the database to fix the inconsistency
     try {
       // First, reset all bids to not winner
@@ -1196,18 +1236,18 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
         { auction_id, item_id: itemId },
         { is_winner: false }
       );
-      
+
       // Then set the correct winner
-      const correctWinner = sortedBids.find(bid => bid.is_winner);
+      const correctWinner = sortedBids.find((bid) => bid.is_winner);
       if (correctWinner) {
-        await Bid.updateOne(
-          { _id: correctWinner.bid_id },
-          { is_winner: true }
-        );
+        await Bid.updateOne({ _id: correctWinner.bid_id }, { is_winner: true });
         console.log(`Fixed winner in database for auction ${auction_id}`);
       }
     } catch (error) {
-      console.error(`Failed to fix winner in database for auction ${auction_id}:`, error);
+      console.error(
+        `Failed to fix winner in database for auction ${auction_id}:`,
+        error
+      );
     }
   }
 
@@ -1228,7 +1268,10 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
       leaderboard.length > 0
         ? leaderboard.reduce((acc, b) => acc + b.amount, 0) / leaderboard.length
         : 0,
-    highestBid: leaderboard.length > 0 ? Math.max(...leaderboard.map(b => b.amount)) : 0,
+    highestBid:
+      leaderboard.length > 0
+        ? Math.max(...leaderboard.map((b) => b.amount))
+        : 0,
   };
 
   const response = new APIResponse(
@@ -1253,5 +1296,5 @@ export {
   getAuctionLeaderboard,
   getMyAuctions,
   getSealedBidLeaderboard,
-  decryptAmount
+  decryptAmount,
 };

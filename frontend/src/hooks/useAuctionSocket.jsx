@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 export const useAuctionSocket = (
@@ -10,53 +10,52 @@ export const useAuctionSocket = (
 ) => {
   const socketRef = useRef(null);
 
-  const connectSocket = useCallback(() => {
-    if (auctionType !== "single_timed_item" || !accessToken) return () => {};
+  useEffect(() => {
+    if (auctionType !== "single_timed_item" || !auctionId || !accessToken) return;
 
-    socketRef.current = io("http://localhost:3000/auctions", {
+    const socket = io("http://localhost:3000/auctions", {
       auth: { token: accessToken },
-      transports: ["polling", "websocket"],
-      timeout: 20000,
+      transports: ["websocket"],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     });
 
-    socketRef.current.on("connect", () => {
-      console.log("Socket connected:", socketRef.current.id);
-      socketRef.current.emit("join_auction_room", auctionId);
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("✅ Connected to auction socket:", socket.id);
+      socket.emit("join_auction_room", auctionId);
     });
 
-    socketRef.current.on("timeBidPlaced", (bid) => {
-      onBidUpdate(bid);
-      onNotification(
-        `New bid: $${bid.amount.toLocaleString()} by ${
-          bid.bidder_username || "Anonymous"
-        }`,
-        "info"
-      );
+    socket.on("disconnect", (reason) => {
+      console.warn("❌ Disconnected:", reason);
     });
 
-    socketRef.current.on("reconnect_failed", () => {
-      onNotification("Failed to reconnect to real-time updates", "danger");
+    socket.on("connect_error", (error) => {
+      console.error("⚠️ Socket connection error:", error);
+      if (onNotification) onNotification("Connection error. Reconnecting...", "warning");
     });
 
-    socketRef.current.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
-      onNotification("Connection error. Trying to reconnect...", "warning");
+    socket.on("reconnect_failed", () => {
+      if (onNotification) onNotification("Failed to reconnect to auction", "danger");
+    });
+
+    socket.on("timeBidPlaced", (bid) => {
+      console.log("📡 Bid received:", bid);
+      if (onBidUpdate) onBidUpdate(bid);
+      if (onNotification) {
+        onNotification(
+          `New bid: $${bid.amount.toLocaleString()} by ${bid.bidder_username || "Anonymous"}`,
+          "info"
+        );
+      }
     });
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.emit("leave_auction_room", auctionId);
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+      console.log("👋 Cleaning up socket...");
+      socket.emit("leave_auction_room", auctionId);
+      socket.disconnect();
     };
-  }, [auctionType, auctionId, accessToken, onBidUpdate, onNotification]);
-
-  useEffect(() => {
-    const cleanup = connectSocket();
-    return cleanup;
-  }, [connectSocket]);
+  }, [auctionType, auctionId, accessToken]); // ❗️Don't include callbacks here
 };

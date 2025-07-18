@@ -133,7 +133,7 @@ function Navbar() {
 
                   {user?.role === "admin" && (
                     <li>
-                      <NavLink to="/admin" className={dropdownItemClass}>
+                      <NavLink to="/admin/dashboard" className={dropdownItemClass}>
                         Admin
                       </NavLink>
                     </li>
