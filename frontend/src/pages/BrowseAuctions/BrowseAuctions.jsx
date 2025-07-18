@@ -39,20 +39,36 @@ const BrowseAuctions = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // State management
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
-  const [auctionType, setAuctionType] = useState(searchParams.get("type") || "all");
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "all");
-  const [sortBy, setSortBy] = useState(searchParams.get("sort") || "starting-soon");
-  const [viewMode, setViewMode] = useState(localStorage.getItem("viewMode") || "grid");
+  const [searchTerm, setSearchTerm] = useState(
+    searchParams.get("search") || ""
+  );
+  const [auctionType, setAuctionType] = useState(
+    searchParams.get("type") || "all"
+  );
+  const [statusFilter, setStatusFilter] = useState(
+    searchParams.get("status") || "all"
+  );
+  const [sortBy, setSortBy] = useState(
+    searchParams.get("sort") || "starting-soon"
+  );
+  const [viewMode, setViewMode] = useState(
+    localStorage.getItem("viewMode") || "grid"
+  );
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timerTexts, setTimerTexts] = useState({});
-  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1);
+  const [currentPage, setCurrentPage] = useState(
+    parseInt(searchParams.get("page")) || 1
+  );
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [itemsPerPage, setItemsPerPage] = useState(parseInt(localStorage.getItem("itemsPerPage")) || 9);
-  const [favorites, setFavorites] = useState(JSON.parse(localStorage.getItem("favoriteAuctions")) || []);
+  const [itemsPerPage, setItemsPerPage] = useState(
+    parseInt(localStorage.getItem("itemsPerPage")) || 9
+  );
+  const [favorites, setFavorites] = useState(
+    JSON.parse(localStorage.getItem("favoriteAuctions")) || []
+  );
 
   // Preview modal state
   const [showPreview, setShowPreview] = useState(false);
@@ -101,7 +117,14 @@ const BrowseAuctions = () => {
     if (sortBy !== "starting-soon") params.set("sort", sortBy);
     if (currentPage !== 1) params.set("page", currentPage.toString());
     setSearchParams(params);
-  }, [searchTerm, auctionType, statusFilter, sortBy, currentPage, setSearchParams]);
+  }, [
+    searchTerm,
+    auctionType,
+    statusFilter,
+    sortBy,
+    currentPage,
+    setSearchParams,
+  ]);
 
   // Fetch auctions with improved error handling
   const fetchAuctions = useCallback(
@@ -156,7 +179,14 @@ const BrowseAuctions = () => {
       updateUrlParams();
     }, 300);
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, auctionType, statusFilter, sortBy, currentPage, itemsPerPage]);
+  }, [
+    searchTerm,
+    auctionType,
+    statusFilter,
+    sortBy,
+    currentPage,
+    itemsPerPage,
+  ]);
 
   // Timer effect with performance optimization
   useEffect(() => {
@@ -191,7 +221,9 @@ const BrowseAuctions = () => {
     const difference = end - now;
     if (difference <= 0) return "Auction Ended";
     const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const hours = Math.floor(
+      (difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+    );
     const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((difference % (1000 * 60)) / 1000);
     if (days > 0) return `${days}d ${hours}h ${minutes}m`;
@@ -207,7 +239,9 @@ const BrowseAuctions = () => {
         live: "Live Auction",
         sealed_bid: "Sealed Bid",
         single_timed_item: "Timed Auction",
-      }[name] || auctionType.type_name || "Unknown"
+      }[name] ||
+      auctionType.type_name ||
+      "Unknown"
     );
   };
 
@@ -242,7 +276,9 @@ const BrowseAuctions = () => {
       : [...favorites, auctionId];
     setFavorites(newFavorites);
     localStorage.setItem("favoriteAuctions", JSON.stringify(newFavorites));
-    const action = newFavorites.includes(auctionId) ? "added to" : "removed from";
+    const action = newFavorites.includes(auctionId)
+      ? "added to"
+      : "removed from";
     showNotification(`Auction ${action} favorites`, "success");
   };
 
@@ -261,7 +297,9 @@ const BrowseAuctions = () => {
       setPreviewData(mappedData);
       setShowPreview(true);
     } catch (err) {
-      const errorMessage = err.message || "Failed to fetch auction preview. If unauthorized, please log in.";
+      const errorMessage =
+        err.message ||
+        "Failed to fetch auction preview. If unauthorized, please log in.";
       setPreviewError(errorMessage);
       showNotification(errorMessage, "error");
       console.error("Error fetching auction preview:", err);
@@ -294,15 +332,22 @@ const BrowseAuctions = () => {
   };
 
   const handleViewDetails = (auction) => {
-    if (!auction || !auction._id) return;
-    if (auction.status === "active") {
-      navigate(`/joinAuction/${auction.auctionType_id?.type_name?.toLowerCase()}/${auction._id}`, {
-        state: { auction },
-      });
-    } else {
-      fetchAuctionPreview(auction._id);
-    }
-  };
+  if (!auction || !auction._id) return;
+
+  const type = auction.auctionType_id?.type_name?.toLowerCase();
+
+  if (type === "sealed_bid") {
+    navigate(`/joinAuction/sealed_bid/${auction._id}`, {
+      state: { auction },
+    });
+  } else if (auction.status === "active") {
+    navigate(`/joinAuction/${type}/${auction._id}`, {
+      state: { auction },
+    });
+  } else {
+    fetchAuctionPreview(auction._id);
+  }
+};
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -340,12 +385,17 @@ const BrowseAuctions = () => {
     return (
       <>
         <Navbar />
-        <div className="d-flex justify-content-center align-items-center" style={{ height: "50vh" }}>
+        <div
+          className="d-flex justify-content-center align-items-center"
+          style={{ height: "50vh" }}
+        >
           <div className="text-center">
             <Spinner animation="border" variant="primary" size="lg" />
             <div className="mt-3">
               <h5>Loading auctions...</h5>
-              <p className="text-muted">Please wait while we fetch the latest auctions</p>
+              <p className="text-muted">
+                Please wait while we fetch the latest auctions
+              </p>
             </div>
           </div>
         </div>
@@ -369,7 +419,10 @@ const BrowseAuctions = () => {
                 <FontAwesomeIcon icon={faSyncAlt} className="me-2" />
                 Try Again
               </button>
-              <button className="btn btn-outline-secondary" onClick={() => navigate("/")}>
+              <button
+                className="btn btn-outline-secondary"
+                onClick={() => navigate("/")}
+              >
                 Go Home
               </button>
             </div>
@@ -400,14 +453,18 @@ const BrowseAuctions = () => {
               </button>
               <div className="btn-group" role="group">
                 <button
-                  className={`btn ${viewMode === "grid" ? "btn-primary" : "btn-outline-primary"}`}
+                  className={`btn ${
+                    viewMode === "grid" ? "btn-primary" : "btn-outline-primary"
+                  }`}
                   onClick={() => handleViewModeChange("grid")}
                   title="Grid view"
                 >
                   <FontAwesomeIcon icon={faTh} />
                 </button>
                 <button
-                  className={`btn ${viewMode === "list" ? "btn-primary" : "btn-outline-primary"}`}
+                  className={`btn ${
+                    viewMode === "list" ? "btn-primary" : "btn-outline-primary"
+                  }`}
                   onClick={() => handleViewModeChange("list")}
                   title="List view"
                 >
@@ -492,7 +549,9 @@ const BrowseAuctions = () => {
                   <select
                     className="form-select"
                     value={itemsPerPage}
-                    onChange={(e) => handleItemsPerPageChange(parseInt(e.target.value))}
+                    onChange={(e) =>
+                      handleItemsPerPageChange(parseInt(e.target.value))
+                    }
                     title="Items per page"
                   >
                     <option value={9}>9</option>
@@ -502,7 +561,10 @@ const BrowseAuctions = () => {
                   </select>
                 </div>
                 <div className="col-md-2">
-                  <button className="btn btn-outline-secondary w-100" onClick={resetFilters}>
+                  <button
+                    className="btn btn-outline-secondary w-100"
+                    onClick={resetFilters}
+                  >
                     <FontAwesomeIcon icon={faSyncAlt} className="me-1" />
                     Reset
                   </button>
@@ -513,7 +575,9 @@ const BrowseAuctions = () => {
                   Showing {auctions.length} of {totalItems} auctions
                   {searchTerm && ` for "${searchTerm}"`}
                 </small>
-                <small className="text-muted">Page {currentPage} of {totalPages}</small>
+                <small className="text-muted">
+                  Page {currentPage} of {totalPages}
+                </small>
               </div>
             </div>
           </div>
@@ -521,10 +585,16 @@ const BrowseAuctions = () => {
           {auctions.length === 0 ? (
             <div className="card shadow-sm">
               <div className="card-body text-center py-5">
-                <FontAwesomeIcon icon={faGavel} className="text-muted mb-3" size="3x" />
+                <FontAwesomeIcon
+                  icon={faGavel}
+                  className="text-muted mb-3"
+                  size="3x"
+                />
                 <h4 className="text-muted">No auctions found</h4>
                 <p className="text-muted">
-                  {searchTerm ? `No auctions match your search for "${searchTerm}"` : "Try adjusting your search filters"}
+                  {searchTerm
+                    ? `No auctions match your search for "${searchTerm}"`
+                    : "Try adjusting your search filters"}
                 </p>
                 <button className="btn btn-primary" onClick={resetFilters}>
                   <FontAwesomeIcon icon={faSyncAlt} className="me-2" />
@@ -534,12 +604,26 @@ const BrowseAuctions = () => {
             </div>
           ) : (
             <>
-              <div className={`row ${viewMode === "grid" ? "row-cols-1 row-cols-md-2 row-cols-lg-3" : "row-cols-1"} g-4`}>
+              <div
+                className={`row ${
+                  viewMode === "grid"
+                    ? "row-cols-1 row-cols-md-2 row-cols-lg-3"
+                    : "row-cols-1"
+                } g-4`}
+              >
                 {auctions.map((auction) => (
                   <div className="col" key={auction._id}>
-                    <div className={`card h-100 shadow-sm auction-card ${viewMode === "list" ? "card-horizontal" : ""}`}>
+                    <div
+                      className={`card h-100 shadow-sm auction-card ${
+                        viewMode === "list" ? "card-horizontal" : ""
+                      }`}
+                    >
                       <div className="position-relative">
-                        <span className={`badge ${getStatusBadgeClass(auction.status)} position-absolute top-0 start-0 m-2`}>
+                        <span
+                          className={`badge ${getStatusBadgeClass(
+                            auction.status
+                          )} position-absolute top-0 start-0 m-2`}
+                        >
                           {formatStatus(auction.status)}
                         </span>
                         <span className="badge bg-primary position-absolute top-0 end-0 m-2">
@@ -548,42 +632,84 @@ const BrowseAuctions = () => {
                         <button
                           className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
                           onClick={() => toggleFavorite(auction._id)}
-                          title={favorites.includes(auction._id) ? "Remove from favorites" : "Add to favorites"}
+                          title={
+                            favorites.includes(auction._id)
+                              ? "Remove from favorites"
+                              : "Add to favorites"
+                          }
                         >
                           <FontAwesomeIcon
                             icon={faHeart}
-                            className={favorites.includes(auction._id) ? "text-danger" : "text-muted"}
+                            className={
+                              favorites.includes(auction._id)
+                                ? "text-danger"
+                                : "text-muted"
+                            }
                           />
                         </button>
                         <div
-                          className={`auction-banner ${viewMode === "list" ? "list-banner" : ""}`}
+                          className={`auction-banner ${
+                            viewMode === "list" ? "list-banner" : ""
+                          }`}
                           style={{
-                            backgroundImage: `url(${auction.banner_image || "/default-auction.jpg"})`,
+                            backgroundImage: `url(${
+                              auction.banner_image || "/default-auction.jpg"
+                            })`,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
                             height: viewMode === "list" ? "150px" : "200px",
                           }}
                           onError={(e) => {
-                            e.target.style.backgroundImage = 'url("/default-auction.jpg")';
+                            e.target.style.backgroundImage =
+                              'url("/default-auction.jpg")';
                           }}
                         ></div>
                       </div>
                       <div className="card-body">
-                        <h5 className="card-title">{auction.auction_title || "Untitled Auction"}</h5>
+                        <h5 className="card-title">
+                          {auction.auction_title || "Untitled Auction"}
+                        </h5>
                         <p className="card-text text-muted">
-                          {auction.auction_description?.slice(0, viewMode === "list" ? 200 : 100) || "No description available"}
-                          {auction.auction_description?.length > (viewMode === "list" ? 200 : 100) && "..."}
+                          {auction.auction_description?.slice(
+                            0,
+                            viewMode === "list" ? 200 : 100
+                          ) || "No description available"}
+                          {auction.auction_description?.length >
+                            (viewMode === "list" ? 200 : 100) && "..."}
                         </p>
-                        <div className={`${viewMode === "list" ? "d-flex justify-content-between" : ""} mb-2`}>
-                          <div className={viewMode === "list" ? "me-4" : "d-flex justify-content-between mb-2"}>
+                        <div
+                          className={`${
+                            viewMode === "list"
+                              ? "d-flex justify-content-between"
+                              : ""
+                          } mb-2`}
+                        >
+                          <div
+                            className={
+                              viewMode === "list"
+                                ? "me-4"
+                                : "d-flex justify-content-between mb-2"
+                            }
+                          >
                             <div>
-                              <small className="text-muted">Time Remaining:</small>
-                              <div className="fw-bold text-primary">{timerTexts[auction._id] || "--"}</div>
+                              <small className="text-muted">
+                                Time Remaining:
+                              </small>
+                              <div className="fw-bold text-primary">
+                                {timerTexts[auction._id] || "--"}
+                              </div>
                             </div>
-                            <div className={viewMode === "list" ? "text-start" : "text-end"}>
+                            <div
+                              className={
+                                viewMode === "list" ? "text-start" : "text-end"
+                              }
+                            >
                               <small className="text-muted">Bidders:</small>
                               <div>
-                                <FontAwesomeIcon icon={faUsers} className="me-1" />
+                                <FontAwesomeIcon
+                                  icon={faUsers}
+                                  className="me-1"
+                                />
                                 {auction.settings?.unique_bidders || 0}
                               </div>
                             </div>
@@ -592,35 +718,60 @@ const BrowseAuctions = () => {
                         <div className="d-flex justify-content-between align-items-center">
                           <div>
                             <small className="text-muted">
-                              {auction.auctionType_id?.type_name?.toLowerCase() === "single_timed_item" && auction.items?.[0]?.current_bid
+                              {auction.auctionType_id?.type_name?.toLowerCase() ===
+                                "single_timed_item" &&
+                              auction.items?.[0]?.current_bid
                                 ? "Current Bid"
                                 : "Starting Bid"}
                             </small>
                             <div className="fw-bold">
                               $
-                              {(auction.auctionType_id?.type_name?.toLowerCase() === "single_timed_item" && auction.items?.[0]?.current_bid
+                              {(auction.auctionType_id?.type_name?.toLowerCase() ===
+                                "single_timed_item" &&
+                              auction.items?.[0]?.current_bid
                                 ? auction.items[0].current_bid
                                 : auction.settings?.reserve_price || 0
                               ).toLocaleString()}
                             </div>
                           </div>
                           <div className="d-flex gap-2">
-                            {auction.status === "active" ? (
+                            {auction.auctionType_id?.type_name ===
+                            "sealed_bid" ? (
                               <button
                                 onClick={() => handleViewDetails(auction)}
                                 className="btn btn-sm btn-success"
                                 disabled={!auction._id}
                               >
-                                <FontAwesomeIcon icon={faGavel} className="me-1" />
+                                <FontAwesomeIcon
+                                  icon={faGavel}
+                                  className="me-1"
+                                />
+                                Join Room
+                              </button>
+                            ) : auction.status === "active" ? (
+                              <button
+                                onClick={() => handleViewDetails(auction)}
+                                className="btn btn-sm btn-success"
+                                disabled={!auction._id}
+                              >
+                                <FontAwesomeIcon
+                                  icon={faGavel}
+                                  className="me-1"
+                                />
                                 Bid Now
                               </button>
                             ) : auction.status === "completed" ? (
                               <button
-                                onClick={() => fetchAuctionLeaderboard(auction._id)}
+                                onClick={() =>
+                                  fetchAuctionLeaderboard(auction._id)
+                                }
                                 className="btn btn-sm btn-outline-secondary"
                                 disabled={!auction._id}
                               >
-                                <FontAwesomeIcon icon={faTrophy} className="me-1" />
+                                <FontAwesomeIcon
+                                  icon={faTrophy}
+                                  className="me-1"
+                                />
                                 Leaderboard
                               </button>
                             ) : (
@@ -629,7 +780,10 @@ const BrowseAuctions = () => {
                                 className="btn btn-sm btn-outline-primary"
                                 disabled={!auction._id}
                               >
-                                <FontAwesomeIcon icon={faEye} className="me-1" />
+                                <FontAwesomeIcon
+                                  icon={faEye}
+                                  className="me-1"
+                                />
                                 Preview
                               </button>
                             )}
@@ -643,8 +797,14 @@ const BrowseAuctions = () => {
               {totalPages > 1 && (
                 <div className="d-flex justify-content-center mt-4">
                   <Pagination size="lg">
-                    <Pagination.First disabled={currentPage === 1} onClick={() => handlePageChange(1)} />
-                    <Pagination.Prev disabled={currentPage === 1} onClick={() => handlePageChange(currentPage - 1)} />
+                    <Pagination.First
+                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(1)}
+                    />
+                    <Pagination.Prev
+                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                    />
                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                       let pageNum;
                       if (totalPages <= 5) {
@@ -706,7 +866,11 @@ const BrowseAuctions = () => {
         >
           <Toast.Header>
             <strong className="me-auto">
-              {toastVariant === "success" ? "Success" : toastVariant === "error" ? "Error" : "Info"}
+              {toastVariant === "success"
+                ? "Success"
+                : toastVariant === "error"
+                ? "Error"
+                : "Info"}
             </strong>
             <small>just now</small>
           </Toast.Header>

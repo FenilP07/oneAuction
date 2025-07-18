@@ -15,12 +15,15 @@ export const useAuctionData = (auctionId, userId) => {
       setError(null);
       const response = await getAuctionById(auctionId);
       const auctionData = response.data.auction;
+      if (!auctionData?.items?.length) {
+        throw new Error("No items found for this auction");
+      }
       setAuction(auctionData);
 
-      // Check if user has already bid in sealed auctions
+      // Check if user has already bid
       if (auctionData.bid_history && userId) {
         const userBid = auctionData.bid_history.find(
-          (bid) => bid.bidder_id === userId
+          (bid) => bid.bidder_id.toString() === userId
         );
         setHasBid(!!userBid);
       }
@@ -33,14 +36,15 @@ export const useAuctionData = (auctionId, userId) => {
 
   const updateAuctionWithBid = useCallback((updatedBid) => {
     setAuction((prev) => {
-      if (!prev) return prev;
+      if (!prev || !prev.items?.length) return prev;
 
       const newBid = {
+        _id: updatedBid._id,
         bidder_id: updatedBid.bidder_id,
         bidder_username: updatedBid.bidder_username || "Anonymous",
         amount: updatedBid.amount,
         item_id: updatedBid.item_id,
-        timestamp: new Date(),
+        timestamp: new Date(updatedBid.timestamp),
       };
 
       const updatedBidHistory = [newBid, ...(prev.bid_history || [])];
@@ -61,6 +65,7 @@ export const useAuctionData = (auctionId, userId) => {
         settings: {
           ...prev.settings,
           bid_count: (prev.settings.bid_count || 0) + 1,
+          unique_bidders: prev.settings.unique_bidders + (prev.bid_history.some(bid => bid.bidder_id.toString() === updatedBid.bidder_id.toString()) ? 0 : 1),
         },
       };
     });

@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Modal, Button, Form, Alert, Spinner, Card, Badge, OverlayTrigger, Tooltip } from "react-bootstrap";
+import {
+  Modal,
+  Button,
+  Form,
+  Alert,
+  Spinner,
+  Card,
+  Badge,
+  OverlayTrigger,
+  Tooltip,
+} from "react-bootstrap";
 import getAllAuctionTypes from "../services/auctioTypeService";
 import { getMyAvailableItems } from "../services/itemService";
 import { createAuction } from "../services/auctionService";
@@ -36,7 +46,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
   const now = new Date();
   const currentDate = now.toISOString().split("T")[0];
   const currentTime = now
-    .toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })
+    .toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    })
     .slice(0, 5);
 
   useEffect(() => {
@@ -77,24 +91,31 @@ const AuctionModal = ({ onAuctionCreate }) => {
     }
   }, []);
 
-  const handleItemSelect = useCallback((item) => {
-    setAuctionData((prev) => {
-      const typeName = selectedAuctionType.type_name;
-      if (typeName === "live") {
-        const isSelected = prev.items.includes(item._id);
-        const updatedItems = isSelected
-          ? prev.items.filter((id) => id !== item._id)
-          : [...prev.items, item._id];
-        const updatedSequence = isSelected
-          ? prev.sequence.filter((_, i) => prev.items[i] !== item._id)
-          : [...prev.sequence, prev.items.length + 1];
-        return { ...prev, items: updatedItems, sequence: updatedSequence };
-      } else {
-        return { ...prev, items: prev.items.includes(item._id) ? [] : [item._id], sequence: [] };
-      }
-    });
-    setError(null);
-  }, [selectedAuctionType]);
+  const handleItemSelect = useCallback(
+    (item) => {
+      setAuctionData((prev) => {
+        const typeName = selectedAuctionType.type_name;
+        if (typeName === "live") {
+          const isSelected = prev.items.includes(item._id);
+          const updatedItems = isSelected
+            ? prev.items.filter((id) => id !== item._id)
+            : [...prev.items, item._id];
+          const updatedSequence = isSelected
+            ? prev.sequence.filter((_, i) => prev.items[i] !== item._id)
+            : [...prev.sequence, prev.items.length + 1];
+          return { ...prev, items: updatedItems, sequence: updatedSequence };
+        } else {
+          return {
+            ...prev,
+            items: prev.items.includes(item._id) ? [] : [item._id],
+            sequence: [],
+          };
+        }
+      });
+      setError(null);
+    },
+    [selectedAuctionType]
+  );
 
   const handleSequenceChange = useCallback((itemId, direction) => {
     setAuctionData((prev) => {
@@ -105,7 +126,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
       const targetIndex = direction === "up" ? index - 1 : index + 1;
 
       if (targetIndex >= 0 && targetIndex < newItems.length) {
-        [newItems[index], newItems[targetIndex]] = [newItems[targetIndex], newItems[index]];
+        [newItems[index], newItems[targetIndex]] = [
+          newItems[targetIndex],
+          newItems[index],
+        ];
         newSequence[index] = index + 1;
         newSequence[targetIndex] = targetIndex + 1;
       }
@@ -137,33 +161,60 @@ const AuctionModal = ({ onAuctionCreate }) => {
 
   const validateForm = useCallback(() => {
     if (!auctionData.auction_title.trim()) return "Auction title is required";
-    if (auctionData.auction_title.length > 100) return "Auction title must be 100 characters or less";
-    if (auctionData.auction_description.length > 500) return "Description must be 500 characters or less";
+    if (auctionData.auction_title.length > 100)
+      return "Auction title must be 100 characters or less";
+    if (auctionData.auction_description.length > 500)
+      return "Description must be 500 characters or less";
     if (!auctionData.startDate) return "Start date is required";
     if (!auctionData.startTime) return "Start time is required";
-    const startDateTime = new Date(`${auctionData.startDate}T${auctionData.startTime}`);
+    const startDateTime = new Date(
+      `${auctionData.startDate}T${auctionData.startTime}`
+    );
     if (startDateTime < now) return "Start time must be in the future";
-    if (!auctionData.timePeriod || auctionData.timePeriod <= 0) return "Duration must be a positive number";
+    if (!auctionData.timePeriod || auctionData.timePeriod <= 0)
+      return "Duration must be a positive number";
     if (auctionData.timePeriod > 1440) return "Duration cannot exceed 24 hours";
-    if (!auctionData.agreement) return "You must agree to the terms and conditions";
+    if (!auctionData.agreement)
+      return "You must agree to the terms and conditions";
     if (auctionData.items.length === 0) return "At least one item is required";
-    if (selectedAuctionType.type_name === "live" && auctionData.items.length < 3) {
+    if (
+      selectedAuctionType.type_name === "live" &&
+      auctionData.items.length < 3
+    ) {
       return "Live auctions require at least three items";
     }
     if (
-      (selectedAuctionType.type_name === "single_timed_item" || selectedAuctionType.type_name === "sealed_bid") &&
+      (selectedAuctionType.type_name === "single_timed_item" ||
+        selectedAuctionType.type_name === "sealed_bid") &&
       auctionData.items.length > 1
     ) {
       return "Timed and sealed bid auctions can only have one item";
     }
-    if (selectedAuctionType.type_name === "sealed_bid" && auctionData.hint.length > 200) {
-      return "Hint must be 200 characters or less";
+
+    // Enhanced hint validation for sealed bid auctions
+    if (selectedAuctionType.type_name === "sealed_bid") {
+      if (!auctionData.hint || auctionData.hint.trim().length === 0) {
+        return "Hint is required for sealed bid auctions";
+      }
+      if (auctionData.hint.trim().length > 200) {
+        return "Hint must be 200 characters or less";
+      }
     }
+
     if (selectedAuctionType.type_name === "sealed_bid") {
       const deadline = auctionData.sealed_bid_deadline
         ? new Date(auctionData.sealed_bid_deadline)
         : null;
-      if (deadline && (isNaN(deadline.getTime()) || deadline < startDateTime || deadline > new Date(`${auctionData.startDate}T${auctionData.startTime}`).getTime() + auctionData.timePeriod * 60000)) {
+      if (
+        deadline &&
+        (isNaN(deadline.getTime()) ||
+          deadline < startDateTime ||
+          deadline >
+            new Date(
+              `${auctionData.startDate}T${auctionData.startTime}`
+            ).getTime() +
+              auctionData.timePeriod * 60000)
+      ) {
         return "Sealed bid deadline must be between start time and end time";
       }
     }
@@ -192,7 +243,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
       sealed_bid_deadline,
     } = auctionData;
 
-    const auction_start_time = new Date(`${startDate}T${startTime}`).toISOString();
+    const auction_start_time = new Date(
+      `${startDate}T${startTime}`
+    ).toISOString();
     const auction_end_time = new Date(
       new Date(`${startDate}T${startTime}`).getTime() + timePeriod * 60000
     ).toISOString();
@@ -206,25 +259,32 @@ const AuctionModal = ({ onAuctionCreate }) => {
       auction_description: auction_description.trim(),
       auction_start_time,
       auction_end_time,
-      ...(selectedAuctionType.type_name === "sealed_bid" && { hint: hint.trim() }),
-      ...(selectedAuctionType.type_name === "live" && { is_invite_only: auctionData.is_invite_only }),
+      ...(selectedAuctionType.type_name === "sealed_bid" && {
+        hint: hint.trim(),
+      }),
+      ...(selectedAuctionType.type_name === "live" && {
+        is_invite_only: auctionData.is_invite_only,
+      }),
       banner_image,
       settings:
         selectedAuctionType.type_name === "live"
           ? { item_ids: items }
           : {
               item_id: items[0],
-              ...(selectedAuctionType.type_name === "sealed_bid" && { sealed_bid_deadline: deadline }),
+              ...(selectedAuctionType.type_name === "sealed_bid" && {
+                sealed_bid_deadline: deadline,
+              }),
             },
     };
 
     try {
+      console.log("Payload before submit:", payload);
       const created = await createAuction(payload);
-      console.log('submitAuction: Created auction:', created);
+      console.log("submitAuction: Created auction:", created);
       onAuctionCreate(created);
       setShowModal(false);
     } catch (err) {
-      console.error('submitAuction: Error:', err);
+      console.error("submitAuction: Error:", err);
       setError(err.message || "Failed to create auction");
     } finally {
       setIsSubmitting(false);
@@ -247,17 +307,22 @@ const AuctionModal = ({ onAuctionCreate }) => {
       sequence: [],
       banner_image: null,
       hint: "",
-      ...(selectedAuctionType?.type_name === "live" && { is_invite_only: false }),
+      ...(selectedAuctionType?.type_name === "live" && {
+        is_invite_only: false,
+      }),
     });
     setBannerPreview(null);
     setError(null);
   }, [currentDate, currentTime, selectedAuctionType]);
 
-  const handlePageChange = useCallback((newPage) => {
-    if (newPage >= 1 && newPage <= itemsData.totalPages) {
-      fetchItems(newPage);
-    }
-  }, [itemsData.totalPages, fetchItems]);
+  const handlePageChange = useCallback(
+    (newPage) => {
+      if (newPage >= 1 && newPage <= itemsData.totalPages) {
+        fetchItems(newPage);
+      }
+    },
+    [itemsData.totalPages, fetchItems]
+  );
 
   return (
     <>
@@ -309,17 +374,32 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       onClick={() => setSelectedAuctionType(type)}
                       className="text-capitalize"
                     >
-                      {type.type_name === "live" && <i className="bi bi-lightning me-1"></i>}
-                      {type.type_name === "single_timed_item" && <i className="bi bi-clock me-1"></i>}
-                      {type.type_name === "sealed_bid" && <i className="bi bi-lock me-1"></i>}
-                      {type.type_name === "live" ? "Live" : type.type_name === "single_timed_item" ? "Timed" : "Sealed Bid"}
+                      {type.type_name === "live" && (
+                        <i className="bi bi-lightning me-1"></i>
+                      )}
+                      {type.type_name === "single_timed_item" && (
+                        <i className="bi bi-clock me-1"></i>
+                      )}
+                      {type.type_name === "sealed_bid" && (
+                        <i className="bi bi-lock me-1"></i>
+                      )}
+                      {type.type_name === "live"
+                        ? "Live"
+                        : type.type_name === "single_timed_item"
+                        ? "Timed"
+                        : "Sealed Bid"}
                     </Button>
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            <Form onSubmit={(e) => { e.preventDefault(); submitAuction(); }}>
+            <Form
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitAuction();
+              }}
+            >
               <div className="row g-3">
                 <div className="col-md-8">
                   <div className="d-flex align-items-center mb-2">
@@ -337,7 +417,8 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         ? "Live"
                         : selectedAuctionType.type_name === "single_timed_item"
                         ? "Timed"
-                        : "Sealed Bid"} Auction
+                        : "Sealed Bid"}{" "}
+                      Auction
                     </h6>
                   </div>
 
@@ -373,21 +454,29 @@ const AuctionModal = ({ onAuctionCreate }) => {
                               <div className="col" key={item._id}>
                                 <Card
                                   className={`h-100 ${
-                                    auctionData.items.includes(item._id) ? "border-success" : ""
+                                    auctionData.items.includes(item._id)
+                                      ? "border-success"
+                                      : ""
                                   }`}
                                   style={{ cursor: "pointer" }}
                                   onClick={() => handleItemSelect(item)}
                                   role="button"
-                                  aria-pressed={auctionData.items.includes(item._id)}
+                                  aria-pressed={auctionData.items.includes(
+                                    item._id
+                                  )}
                                 >
                                   <Card.Img
                                     variant="top"
                                     src={
-                                      item.images?.find((img) => img.is_primary)?.image_url ||
+                                      item.images?.find((img) => img.is_primary)
+                                        ?.image_url ||
                                       item.images?.[0]?.image_url ||
                                       "https://via.placeholder.com/150x100?text=No+Image"
                                     }
-                                    style={{ height: "100px", objectFit: "cover" }}
+                                    style={{
+                                      height: "100px",
+                                      objectFit: "cover",
+                                    }}
                                     alt={item.name}
                                   />
                                   <Card.Body className="p-2">
@@ -405,7 +494,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                       size="sm"
                                       className="w-100"
                                     >
-                                      {auctionData.items.includes(item._id) ? "✓ Selected" : "Select"}
+                                      {auctionData.items.includes(item._id)
+                                        ? "✓ Selected"
+                                        : "Select"}
                                     </Button>
                                   </Card.Footer>
                                 </Card>
@@ -415,41 +506,69 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           {itemsData.totalPages > 1 && (
                             <nav aria-label="Items pagination" className="mt-3">
                               <ul className="pagination pagination-sm justify-content-center mb-0">
-                                <li className={`page-item ${itemsData.currentPage === 1 ? "disabled" : ""}`}>
+                                <li
+                                  className={`page-item ${
+                                    itemsData.currentPage === 1
+                                      ? "disabled"
+                                      : ""
+                                  }`}
+                                >
                                   <Button
                                     variant="link"
                                     className="page-link"
-                                    onClick={() => handlePageChange(itemsData.currentPage - 1)}
+                                    onClick={() =>
+                                      handlePageChange(
+                                        itemsData.currentPage - 1
+                                      )
+                                    }
                                     disabled={itemsData.currentPage === 1}
                                     aria-label="Previous page"
                                   >
                                     Previous
                                   </Button>
                                 </li>
-                                {[...Array(itemsData.totalPages).keys()].map((page) => (
-                                  <li
-                                    key={page + 1}
-                                    className={`page-item ${itemsData.currentPage === page + 1 ? "active" : ""}`}
-                                  >
-                                    <Button
-                                      variant="link"
-                                      className="page-link"
-                                      onClick={() => handlePageChange(page + 1)}
+                                {[...Array(itemsData.totalPages).keys()].map(
+                                  (page) => (
+                                    <li
+                                      key={page + 1}
+                                      className={`page-item ${
+                                        itemsData.currentPage === page + 1
+                                          ? "active"
+                                          : ""
+                                      }`}
                                     >
-                                      {page + 1}
-                                    </Button>
-                                  </li>
-                                ))}
+                                      <Button
+                                        variant="link"
+                                        className="page-link"
+                                        onClick={() =>
+                                          handlePageChange(page + 1)
+                                        }
+                                      >
+                                        {page + 1}
+                                      </Button>
+                                    </li>
+                                  )
+                                )}
                                 <li
                                   className={`page-item ${
-                                    itemsData.currentPage === itemsData.totalPages ? "disabled" : ""
+                                    itemsData.currentPage ===
+                                    itemsData.totalPages
+                                      ? "disabled"
+                                      : ""
                                   }`}
                                 >
                                   <Button
                                     variant="link"
                                     className="page-link"
-                                    onClick={() => handlePageChange(itemsData.currentPage + 1)}
-                                    disabled={itemsData.currentPage === itemsData.totalPages}
+                                    onClick={() =>
+                                      handlePageChange(
+                                        itemsData.currentPage + 1
+                                      )
+                                    }
+                                    disabled={
+                                      itemsData.currentPage ===
+                                      itemsData.totalPages
+                                    }
                                     aria-label="Next page"
                                   >
                                     Next
@@ -463,52 +582,61 @@ const AuctionModal = ({ onAuctionCreate }) => {
                     </Card.Body>
                   </Card>
 
-                  {selectedAuctionType.type_name === "live" && auctionData.items.length > 0 && (
-                    <Card className="shadow-sm mt-3">
-                      <Card.Body className="p-3">
-                        <h6 className="mb-2 fs-6">Item Sequence</h6>
-                        <ul className="list-group list-group-flush">
-                          {auctionData.items.map((itemId, index) => {
-                            const item = itemsData.items.find((i) => i._id === itemId);
-                            return (
-                              <li
-                                key={itemId}
-                                className="list-group-item d-flex align-items-center p-2"
-                              >
-                                <Badge bg="secondary" className="me-2">
-                                  {index + 1}
-                                </Badge>
-                                <span className="flex-grow-1 text-truncate">
-                                  {item?.name || "Unknown Item"}
-                                </span>
-                                <div>
-                                  <Button
-                                    variant="outline-primary"
-                                    size="sm"
-                                    className="me-1"
-                                    onClick={() => handleSequenceChange(itemId, "up")}
-                                    disabled={index === 0}
-                                    aria-label={`Move ${item?.name} up`}
-                                  >
-                                    <i className="bi bi-arrow-up"></i>
-                                  </Button>
-                                  <Button
-                                    variant="outline-primary"
-                                    size="sm"
-                                    onClick={() => handleSequenceChange(itemId, "down")}
-                                    disabled={index === auctionData.items.length - 1}
-                                    aria-label={`Move ${item?.name} down`}
-                                  >
-                                    <i className="bi bi-arrow-down"></i>
-                                  </Button>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </Card.Body>
-                    </Card>
-                  )}
+                  {selectedAuctionType.type_name === "live" &&
+                    auctionData.items.length > 0 && (
+                      <Card className="shadow-sm mt-3">
+                        <Card.Body className="p-3">
+                          <h6 className="mb-2 fs-6">Item Sequence</h6>
+                          <ul className="list-group list-group-flush">
+                            {auctionData.items.map((itemId, index) => {
+                              const item = itemsData.items.find(
+                                (i) => i._id === itemId
+                              );
+                              return (
+                                <li
+                                  key={itemId}
+                                  className="list-group-item d-flex align-items-center p-2"
+                                >
+                                  <Badge bg="secondary" className="me-2">
+                                    {index + 1}
+                                  </Badge>
+                                  <span className="flex-grow-1 text-truncate">
+                                    {item?.name || "Unknown Item"}
+                                  </span>
+                                  <div>
+                                    <Button
+                                      variant="outline-primary"
+                                      size="sm"
+                                      className="me-1"
+                                      onClick={() =>
+                                        handleSequenceChange(itemId, "up")
+                                      }
+                                      disabled={index === 0}
+                                      aria-label={`Move ${item?.name} up`}
+                                    >
+                                      <i className="bi bi-arrow-up"></i>
+                                    </Button>
+                                    <Button
+                                      variant="outline-primary"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleSequenceChange(itemId, "down")
+                                      }
+                                      disabled={
+                                        index === auctionData.items.length - 1
+                                      }
+                                      aria-label={`Move ${item?.name} down`}
+                                    >
+                                      <i className="bi bi-arrow-down"></i>
+                                    </Button>
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </Card.Body>
+                      </Card>
+                    )}
                 </div>
 
                 <div className="col-md-4">
@@ -535,8 +663,13 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         </Form.Text>
                       </Form.Group>
 
-                      <Form.Group className="mb-2" controlId="auction_description">
-                        <Form.Label className="mb-0 fs-6">Description</Form.Label>
+                      <Form.Group
+                        className="mb-2"
+                        controlId="auction_description"
+                      >
+                        <Form.Label className="mb-0 fs-6">
+                          Description
+                        </Form.Label>
                         <Form.Control
                           as="textarea"
                           name="auction_description"
@@ -573,16 +706,26 @@ const AuctionModal = ({ onAuctionCreate }) => {
                             </Form.Text>
                           </Form.Group>
 
-                          <Form.Group className="mb-2" controlId="sealed_bid_deadline">
-                            <Form.Label className="mb-0 fs-6">Sealed Bid Deadline*</Form.Label>
+                          <Form.Group
+                            className="mb-2"
+                            controlId="sealed_bid_deadline"
+                          >
+                            <Form.Label className="mb-0 fs-6">
+                              Sealed Bid Deadline*
+                            </Form.Label>
                             <Form.Control
                               type="datetime-local"
                               name="sealed_bid_deadline"
                               value={auctionData.sealed_bid_deadline}
                               min={`${auctionData.startDate}T${auctionData.startTime}`}
                               max={new Date(
-                                new Date(`${auctionData.startDate}T${auctionData.startTime}`).getTime() + auctionData.timePeriod * 60000
-                              ).toISOString().slice(0, 16)}
+                                new Date(
+                                  `${auctionData.startDate}T${auctionData.startTime}`
+                                ).getTime() +
+                                  auctionData.timePeriod * 60000
+                              )
+                                .toISOString()
+                                .slice(0, 16)}
                               onChange={handleInputChange}
                               size="sm"
                               required
@@ -595,7 +738,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       )}
 
                       <Form.Group className="mb-2" controlId="banner_image">
-                        <Form.Label className="mb-0 fs-6">Banner Image</Form.Label>
+                        <Form.Label className="mb-0 fs-6">
+                          Banner Image
+                        </Form.Label>
                         <Form.Control
                           type="file"
                           name="banner_image"
@@ -618,7 +763,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       </Form.Group>
 
                       <Form.Group className="mb-2" controlId="startDate">
-                        <Form.Label className="mb-0 fs-6">Start Date*</Form.Label>
+                        <Form.Label className="mb-0 fs-6">
+                          Start Date*
+                        </Form.Label>
                         <Form.Control
                           type="date"
                           name="startDate"
@@ -631,12 +778,18 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       </Form.Group>
 
                       <Form.Group className="mb-2" controlId="startTime">
-                        <Form.Label className="mb-0 fs-6">Start Time*</Form.Label>
+                        <Form.Label className="mb-0 fs-6">
+                          Start Time*
+                        </Form.Label>
                         <Form.Control
                           type="time"
                           name="startTime"
                           value={auctionData.startTime}
-                          min={auctionData.startDate === currentDate ? currentTime : "00:00"}
+                          min={
+                            auctionData.startDate === currentDate
+                              ? currentTime
+                              : "00:00"
+                          }
                           onChange={handleInputChange}
                           size="sm"
                           required
@@ -644,7 +797,9 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       </Form.Group>
 
                       <Form.Group className="mb-2" controlId="timePeriod">
-                        <Form.Label className="mb-0 fs-6">Duration (min)*</Form.Label>
+                        <Form.Label className="mb-0 fs-6">
+                          Duration (min)*
+                        </Form.Label>
                         <Form.Control
                           type="number"
                           name="timePeriod"
@@ -676,7 +831,11 @@ const AuctionModal = ({ onAuctionCreate }) => {
                       )}
 
                       <Form.Group
-                        className={`mb-2 ${error === "You must agree to the terms and conditions" ? "text-danger" : ""}`}
+                        className={`mb-2 ${
+                          error === "You must agree to the terms and conditions"
+                            ? "text-danger"
+                            : ""
+                        }`}
                         controlId="agreementCheck"
                       >
                         <Form.Check
@@ -689,8 +848,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           id="agreementCheck"
                           aria-describedby="agreement_help"
                         />
-                        {error === "You must agree to the terms and conditions" && (
-                          <Form.Text id="agreement_help" className="text-danger">
+                        {error ===
+                          "You must agree to the terms and conditions" && (
+                          <Form.Text
+                            id="agreement_help"
+                            className="text-danger"
+                          >
                             Please check this box to proceed
                           </Form.Text>
                         )}
@@ -720,12 +883,15 @@ const AuctionModal = ({ onAuctionCreate }) => {
                   <Tooltip id="create-auction-tooltip">
                     Please agree to the terms and conditions
                   </Tooltip>
-                ) : auctionData.items.length < 3 && selectedAuctionType.type_name === "live" ? (
+                ) : auctionData.items.length < 3 &&
+                  selectedAuctionType.type_name === "live" ? (
                   <Tooltip id="create-auction-tooltip">
                     Please select at least 3 items for live auctions
                   </Tooltip>
                 ) : (
-                  <Tooltip id="create-auction-tooltip">Create the auction</Tooltip>
+                  <Tooltip id="create-auction-tooltip">
+                    Create the auction
+                  </Tooltip>
                 )
               }
             >
@@ -737,7 +903,8 @@ const AuctionModal = ({ onAuctionCreate }) => {
                   disabled={
                     isSubmitting ||
                     !auctionData.agreement ||
-                    (selectedAuctionType.type_name === "live" && auctionData.items.length < 3)
+                    (selectedAuctionType.type_name === "live" &&
+                      auctionData.items.length < 3)
                   }
                 >
                   {isSubmitting ? (

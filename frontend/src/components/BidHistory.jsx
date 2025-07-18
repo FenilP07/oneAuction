@@ -14,7 +14,7 @@ const BidHistory = React.memo(({ bidHistory, currentBid, pulseKey }) => {
                 bid.amount === currentBid ? "highlight-bid animate-slide-in" : ""
               }`}
             >
-              <span>{bid.bidder_username || "Anonymous"}</span>
+              <span>{bid.bidder_id?.username || "Anonymous"}</span>
               <span>${bid.amount.toLocaleString()}</span>
             </ListGroup.Item>
           ))}

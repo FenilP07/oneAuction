@@ -128,6 +128,11 @@ const auctionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    bid_history: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: "Bid",
+    default: [],
+  }, 
   },
   { timestamps: true }
 );
@@ -147,13 +152,15 @@ auctionSchema.index(
 auctionSchema.pre("save", async function (next) {
   const auctionType = await AuctionType.findById(this.auctionType_id);
   if (!auctionType) return next(new Error("Invalid auction type"));
+  if (auctionType.type_name === "sealed_bid" && this.auction_status === "completed") {
+    return next(); 
+  }
 
   // Time validation
   if (this.auction_start_time >= this.auction_end_time) {
     return next(new Error("End time must be after start time"));
   }
 
-  // ✅ Only check for conflicting auctions for 'live' auctions
   if (auctionType.type_name === "live") {
     const overlappingAuctions = await mongoose.model("Auction").countDocuments({
       auctioneer_id: this.auctioneer_id,

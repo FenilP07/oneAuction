@@ -1,0 +1,17 @@
+.auction-card {
+  transition: transform 0.2s;
+}
+.auction-card:hover {
+  transform: translateY(-5px);
+}
+.auction-banner {
+  border-radius: 8px 8px 0 0;
+}
+@media (max-width: 576px) {
+  .auction-card.card-horizontal {
+    flex-direction: column;
+  }
+  .auction-banner.list-banner {
+    height: 100px !important;
+  }
+}
