@@ -35,3 +35,4 @@ router.post("/timed", authenticatedMiddleware, placeTimedBid);
 router.post("/sealed-bid", authenticatedMiddleware, placeSealedBid);
 
 export default router;
+  
