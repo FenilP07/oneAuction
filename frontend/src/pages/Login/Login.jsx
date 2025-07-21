@@ -57,7 +57,7 @@ const Login = () => {
 					Login successful! Redirecting ...
 				</div>
 			);
-			setTimeout(() => navigate('/home'), 1500);
+			setTimeout(() => navigate('/home'));
 		} catch (error) {
 			const backendMessage = error.message;
 			let newErrors = {};

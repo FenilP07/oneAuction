@@ -84,68 +84,6 @@ const Dashboard = () => {
     checkAndFetch();
   }, [user, activeTab]);
 
-  // const fetchDashboardData = async () => {
-  //   setLoading(true);
-  //   setErrors({ items: null, auctions: null, bids: null });
-
-  //   try {
-  //     if (activeTab === "auctioneer" && ["admin", "auctioneer"].includes(getUserRole())) {
-  //       const [itemsRes, auctionsRes] = await Promise.all([
-  //         retryRequest(() => getMyItems()).catch((err) => {
-  //           console.error('getMyItems failed:', err.message);
-  //           setErrors((prev) => ({ ...prev, items: err.message || 'Failed to fetch items' }));
-  //           return { items: [], totalItems: 0, currentPage: 1, totalPages: 1 };
-  //         }),
-  //         retryRequest(() => getMyAuctions()).catch((err) => {
-  //           console.error('getMyAuctions failed:', err.message);
-  //           setErrors((prev) => ({ ...prev, auctions: err.message || 'Failed to fetch auctions' }));
-  //           return { auctions: [] };
-  //         }),
-  //       ]);
-
-  //       const items = itemsRes.items || [];
-  //       const auctions = auctionsRes || [];
-
-  //       console.log('Fetched items:', items);
-  //       console.log('Fetched auctions:', auctions);
-
-  //       setMyItems(items);
-  //       setMyAuctions(auctions);
-
-  //       const pendingItems = items.filter((item) => item.status === "pending_approval").length;
-  //       const activeAuctions = auctions.filter((auction) => auction.auction_status === "active").length;
-
-  //       setStats((prev) => ({
-  //         ...prev,
-  //         itemsListed: items.length,
-  //         auctionsCreated: auctions.length,
-  //         activeAuctions,
-  //         pendingApprovals: pendingItems,
-  //       }));
-
-  //       generatePerformanceData(items, auctions);
-  //     } else if (activeTab === "bidder") {
-  //       const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
-  //         console.error('getMyBids failed:', err.message);
-  //         setErrors((prev) => ({ ...prev, bids: err.message || 'Failed to fetch bids' }));
-  //         return { bids: [] };
-  //       });
-  //       const bids = bidsRes.bids || [];
-  //       console.log('Fetched bids:', bids);
-  //       setBiddingActivity(bids);
-
-  //       setStats((prev) => ({
-  //         ...prev,
-  //         bidsPlaced: bids.length,
-  //         itemsWon: bids.filter((bid) => bid.status === "won").length,
-  //       }));
-  //     }
-  //   } catch (error) {
-  //     console.error("Fetch dashboard data error:", error);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
  const fetchDashboardData = async (role) => {
     setLoading(true);
     setErrors({ items: null, auctions: null, bids: null });

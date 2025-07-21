@@ -3,7 +3,7 @@ import UserProfile from "../models/userProfile.models.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { APIResponse } from "../utils/apiResponse.js";
-import { generateRandomUsername } from "../utils/randomUsername.js";
+import { generateUserCredentials } from "../utils/randomUsername.js";
 import logger from "../utils/logger.js";
 import { generateAccessToken, generateRefreshToken } from "../utils/token.js";
 import { sendPasswordResetEmail } from "../utils/emailService.js";
@@ -11,14 +11,21 @@ import RevokedToken from "../models/revokedTokens.models.js";
 import jwt from "jsonwebtoken";
 
 /**
- * @desc Registers a new user with profile creation
+ * @desc Registers a new user with profile creation and random avatar
  * @route POST /api/user/register
  */
 const registerUser = asyncHandler(async (req, res) => {
   logger.info("Register request received", { body: req.body });
 
-  const { firstName, lastName, email, username, password, confirmPassword } =
-    req.body;
+  const {
+    firstName,
+    lastName,
+    email,
+    username,
+    password,
+    confirmPassword,
+    avatarStyle,
+  } = req.body;
 
   if (!firstName || !lastName || !email || !password || !confirmPassword) {
     logger.warn("Registration failed: Missing fields");
@@ -40,8 +47,25 @@ const registerUser = asyncHandler(async (req, res) => {
     );
   }
 
-  const finalUsername =
-    username || (await generateRandomUsername(firstName, lastName));
+  // Generate username and avatar if not provided
+  let finalUsername = username;
+  let avatarUrl;
+
+  if (!username) {
+    // Generate both username and avatar
+    const credentials = await generateUserCredentials(
+      firstName,
+      lastName,
+      email,
+      avatarStyle
+    );
+    finalUsername = credentials.username;
+    avatarUrl = credentials.avatarUrl;
+  } else {
+    // Username provided, just generate avatar
+    const { generateRandomAvatar } = await import("../utils/randomUsername.js");
+    avatarUrl = generateRandomAvatar(email || username, avatarStyle);
+  }
 
   const existingUser = await User.findOne({
     $or: [{ email }, { username: finalUsername }],
@@ -65,13 +89,14 @@ const registerUser = asyncHandler(async (req, res) => {
     firstName,
     lastName,
     user: newUser._id,
-    avatarUrl: "https://example.com/default-avatar.png",
+    avatarUrl, // Use generated avatar instead of static URL
   });
 
   logger.info("New user registered", {
     userId: newUser._id,
     email: newUser.email,
     username: newUser.username,
+    avatarUrl: newProfile.avatarUrl,
   });
 
   return res.status(201).json(

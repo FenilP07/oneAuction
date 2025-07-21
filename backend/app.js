@@ -28,8 +28,9 @@ const app = express();
 const server = http.createServer(app);
 
 const allowedOrigins = [
-  process.env.CLIENT_URL || "http://localhost:5173",
-  "http://localhost:3000", // Add other origins as needed
+  // process.env.CLIENT_URL || "http://localhost:5173",
+  // "http://localhost:3000",
+  "https://4e8b4fafd5b6.ngrok-free.app",
 ];
 
 const io = new Server(server, {
@@ -73,7 +74,9 @@ const connectRedisWithRetry = async (retries = 5, delay = 1000) => {
       }
     }
   }
-  logger.warn("Redis connection failed after retries; proceeding without cache");
+  logger.warn(
+    "Redis connection failed after retries; proceeding without cache"
+  );
 };
 
 // Connect to Redis
@@ -155,7 +158,7 @@ io.on("connection", (socket) => {
 const socketAuthMiddleware = async (socket, next) => {
   try {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
-    
+
     if (!token) {
       logger.error("Authentication token missing");
       return next(new Error("Authentication token missing"));
@@ -164,23 +167,23 @@ const socketAuthMiddleware = async (socket, next) => {
     const cleanToken = token.startsWith("Bearer ") ? token.slice(7) : token;
 
     const decoded = jwt.verify(cleanToken, process.env.ACCESS_TOKEN_SECRET);
-    
+
     const RevokedToken = mongoose.model("RevokedToken");
     const revoked = await RevokedToken.findOne({ token: cleanToken });
     if (revoked) {
       logger.error("Access token has been revoked");
       return next(new Error("Access token has been revoked"));
     }
-    
+
     const userId = decoded._id;
     if (!userId) {
       logger.error("No user ID found in decoded token");
       return next(new Error("Invalid token structure"));
     }
-    
+
     const User = mongoose.model("User");
     const user = await User.findById(userId).select("-password -refreshToken");
-    
+
     if (!user) {
       logger.error(`User not found with ID: ${userId}`);
       return next(new Error("User not found"));
@@ -205,7 +208,9 @@ auctionNamespace.use(socketAuthMiddleware);
 
 auctionNamespace.on("connection", (socket) => {
   try {
-    logger.info(`User ${socket.user._id} (${socket.user.username || "Unknown"}) connected to auction namespace`);
+    logger.info(
+      `User ${socket.user._id} (${socket.user.username || "Unknown"}) connected to auction namespace`
+    );
 
     // Emit userJoined event on connection
     auctionNamespace.emit("userJoined", {
@@ -219,7 +224,9 @@ auctionNamespace.on("connection", (socket) => {
     socket.on("join_auction_room", (auction_id) => {
       try {
         socket.join(auction_id);
-        logger.info(`User ${socket.user._id} joined auction room: ${auction_id}`);
+        logger.info(
+          `User ${socket.user._id} joined auction room: ${auction_id}`
+        );
         // Emit userJoined event to the specific auction room
         auctionNamespace.to(auction_id).emit("userJoined", {
           user_id: socket.user._id,
@@ -227,7 +234,9 @@ auctionNamespace.on("connection", (socket) => {
           timestamp: new Date(),
         });
       } catch (error) {
-        logger.error(`Error joining auction room ${auction_id}: ${error.message}`);
+        logger.error(
+          `Error joining auction room ${auction_id}: ${error.message}`
+        );
         socket.emit("error", { message: "Failed to join auction room" });
       }
     });
@@ -237,7 +246,9 @@ auctionNamespace.on("connection", (socket) => {
         socket.leave(auction_id);
         logger.info(`User ${socket.user._id} left auction room: ${auction_id}`);
       } catch (error) {
-        logger.error(`Error leaving auction room ${auction_id}: ${error.message}`);
+        logger.error(
+          `Error leaving auction room ${auction_id}: ${error.message}`
+        );
         socket.emit("error", { message: "Failed to leave auction room" });
       }
     });
@@ -254,21 +265,28 @@ auctionNamespace.on("connection", (socket) => {
         socket.join(session_id);
         logger.info(`User ${socket.user._id} joined session ${session_id}`);
       } catch (err) {
-        logger.error(`Error in joinSession event for session ${session_id}: ${err.message}`);
+        logger.error(
+          `Error in joinSession event for session ${session_id}: ${err.message}`
+        );
         socket.emit("error", { message: "Internal server error" });
       }
     });
 
     socket.on("disconnect", (reason) => {
-      logger.info(`User ${socket.user._id} disconnected from auction namespace. Reason: ${reason}`);
+      logger.info(
+        `User ${socket.user._id} disconnected from auction namespace. Reason: ${reason}`
+      );
     });
 
     socket.on("error", (error) => {
-      logger.error(`Socket error for user ${socket.user._id}: ${error.message}`);
+      logger.error(
+        `Socket error for user ${socket.user._id}: ${error.message}`
+      );
     });
-
   } catch (error) {
-    logger.error(`Error in auction namespace connection for user ${socket.user?._id || "unknown"}: ${error.message}`);
+    logger.error(
+      `Error in auction namespace connection for user ${socket.user?._id || "unknown"}: ${error.message}`
+    );
     socket.emit("error", { message: "Connection error" });
     socket.disconnect();
   }

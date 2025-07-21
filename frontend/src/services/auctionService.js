@@ -198,7 +198,7 @@ const placeTimedBid = async (bidData) => {
  */
 const getMyBids = async (queryParams = {}) => {
   try {
-    const response = await apiClient.get("/auction/my-bids", {
+    const response = await apiClient.get("/auction/bids/my", {
       params: queryParams,
     });
     return response.data.data;

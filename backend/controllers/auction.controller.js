@@ -14,6 +14,12 @@ import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
 import { encryptAmount, decryptAmount } from "../utils/encryption.js";
 
+const formatTimeLeft = (ms) => {
+  if (ms <= 0) return "Ended";
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${m}m ${s}s`;
+};
 const createAuction = asyncHandler(async (req, res) => {
   const {
     auctionType_id,
@@ -748,7 +754,9 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
         status: item.status,
         starting_bid: item.starting_bid, // Added this useful field
         current_bid: item.current_bid, // Added this useful field
-        final_bid: highestBid ? (highestBid.amount || highestBid.encrypted_amount) : null,
+        final_bid: highestBid
+          ? highestBid.amount || highestBid.encrypted_amount
+          : null,
         winner: winner ? winner.username : "No winner",
         winner_id: winner ? winner._id : null, // Added winner_id for frontend use
         // Add bid count if you want
@@ -1284,6 +1292,178 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
   return res.status(200).json(response);
 });
 
+const getMyBids = asyncHandler(async (req, res) => {
+  const userId = req.user?._id;
+  if (!userId) throw new apiError(401, "Unauthorized");
+
+  const userBids = await Bid.find({ bidder_id: userId })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: "auction_id",
+      select:
+        "auction_title auction_status auction_end_time auctionType_id settings",
+      populate: { path: "auctionType_id", select: "type_name" },
+    })
+    .populate({
+      path: "item_id",
+      select:
+        "name status starting_bid current_bid highest_bidder final_price winner_id",
+    })
+    .lean();
+
+  if (userBids.length === 0) {
+    return res.status(200).json(
+      new APIResponse(
+        200,
+        {
+          stats: { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 },
+          active: [],
+          won: [],
+          lost: [],
+          history: [],
+        },
+        "No bids found"
+      )
+    );
+  }
+
+  const byItem = new Map();
+  for (const bid of userBids) {
+    const a = bid.auction_id;
+    const i = bid.item_id;
+    const key = `${a?._id}|${i?._id}`;
+    if (!byItem.has(key)) {
+      byItem.set(key, bid);
+    } else {
+      const existing = byItem.get(key);
+      if ((bid.amount ?? 0) > (existing.amount ?? 0)) {
+        byItem.set(key, bid);
+      }
+    }
+  }
+
+  const allItemIds = [...byItem.values()]
+    .map((b) => b.item_id?._id)
+    .filter(Boolean);
+  const bidsByItem = await Bid.aggregate([
+    {
+      $match: {
+        item_id: {
+          $in: allItemIds.map((id) => new mongoose.Types.ObjectId(id)),
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$item_id",
+        topAmount: { $max: "$amount" },
+        topBidId: { $first: "$_id" },
+      },
+    },
+  ]);
+
+  const topAmountMap = new Map();
+  for (const r of bidsByItem) {
+    topAmountMap.set(r._id.toString(), r.topAmount ?? 0);
+  }
+
+  const active = [],
+    won = [],
+    lost = [];
+
+  for (const bid of byItem.values()) {
+    const auction = bid.auction_id || {};
+    const item = bid.item_id || {};
+    const auctionType = auction.auctionType_id?.type_name;
+    const isAuctionCompleted = auction.auction_status === "completed";
+
+    const sealedDeadline = auction.settings?.sealed_bid_deadline
+      ? new Date(auction.settings.sealed_bid_deadline)
+      : null;
+    const extendedEnd = auction.settings?.extended_end_time
+      ? new Date(auction.settings.extended_end_time)
+      : null;
+    const endTime =
+      sealedDeadline && auctionType === "sealed_bid"
+        ? sealedDeadline
+        : extendedEnd || new Date(auction.auction_end_time);
+    const timeLeft = formatTimeLeft(endTime - Date.now());
+
+    let shownAmount = bid.amount;
+    if (auctionType === "sealed_bid" && !isAuctionCompleted) {
+      shownAmount = undefined;
+    }
+
+    let status;
+    if (isAuctionCompleted) {
+      status = bid.is_winner ? "won" : "lost";
+    } else if (auctionType === "sealed_bid") {
+      status = "sealed_submitted";
+    } else {
+      const topAmt =
+        topAmountMap.get(item._id?.toString()) ?? item.current_bid ?? 0;
+      status = bid.amount >= topAmt ? "leading" : "outbid";
+    }
+
+    const finalPrice = isAuctionCompleted
+      ? (item.final_price ?? bid.amount ?? null)
+      : null;
+
+    const record = {
+      bid_id: bid._id,
+      auction_id: auction._id,
+      auction_title: auction.auction_title,
+      auction_status: auction.auction_status,
+      auction_type: auctionType,
+      item_id: item._id,
+      item_name: item.name,
+      item_status: item.status,
+      amount: shownAmount,
+      final_price: finalPrice,
+      is_winner: !!bid.is_winner,
+      status,
+      timeLeft,
+      createdAt: bid.createdAt,
+    };
+
+    if (isAuctionCompleted) {
+      (bid.is_winner ? won : lost).push(record);
+    } else {
+      active.push(record);
+    }
+  }
+
+  const itemsWon = won.length;
+  const totalSpent = won.reduce(
+    (sum, r) => sum + (typeof r.final_price === "number" ? r.final_price : 0),
+    0
+  );
+  const bidsPlaced = byItem.size;
+
+  const history = userBids.slice(0, 25).map((b) => ({
+    bid_id: b._id,
+    auction_id: b.auction_id?._id,
+    item_id: b.item_id?._id,
+    amount: b.amount,
+    is_winner: b.is_winner,
+    createdAt: b.createdAt,
+  }));
+
+  return res.status(200).json(
+    new APIResponse(
+      200,
+      {
+        stats: { bidsPlaced, itemsWon, totalSpent },
+        active,
+        won,
+        lost,
+        history,
+      },
+      "Bidder data retrieved."
+    )
+  );
+});
+
 export {
   createAuction,
   getAuctionById,
@@ -1297,4 +1477,5 @@ export {
   getMyAuctions,
   getSealedBidLeaderboard,
   decryptAmount,
+  getMyBids,
 };
