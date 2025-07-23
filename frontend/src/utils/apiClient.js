@@ -3,7 +3,7 @@ import axios from "axios";
 import useAuthStore from "../store/authStore.js";
 
 // const CLIENT_API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-const CLIENT_API = import.meta.env.VITE_API_URL || 'https://oneauctionbackend.onrender.com/api';
+const CLIENT_API ='https://oneauctionbackend.onrender.com/api';
 
 const apiClient = axios.create({
   baseURL: CLIENT_API,

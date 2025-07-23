@@ -191,7 +191,7 @@ const ItemListingPage = () => {
       setTimeout(() => {
         setSuccess(false);
         navigate(-1);
-      }, 2000);
+      }, 500);
     } catch (error) {
       console.error("Error creating item:", error);
       setErrors({
@@ -411,14 +411,14 @@ const ItemListingPage = () => {
             </div>
 
             <div className="d-flex justify-content-between pt-3">
-              <button
+              {/* <button
                 type="button"
                 onClick={handleGoBack}
                 className="btn btn-outline-secondary"
               >
                 <ArrowLeft size={18} className="me-2" />
                 Cancel
-              </button>
+              </button> */}
               <button
                 type="submit"
                 disabled={loading}

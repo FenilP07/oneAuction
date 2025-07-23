@@ -14,6 +14,7 @@ import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
 import { encryptAmount, decryptAmount } from "../utils/encryption.js";
 import {emitAuctionStatusUpdate} from "../utils/socketUtils.js"
+import logger from "../utils/logger.js";
 
 const formatTimeLeft = (ms) => {
   if (ms <= 0) return "Ended";

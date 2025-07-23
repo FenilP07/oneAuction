@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate, useSearchParams,useLocation } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUsers,
@@ -33,13 +33,11 @@ import {
   getAuctionPreview,
   getAuctionLeaderboard,
 } from "../../services/auctionService.js";
-import useAuctionStatusSocket from "../../hooks/useAuctionStatusScoket.jsx";
 import "./browseAuction.css";
 
 const BrowseAuctions = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation()  
 
   // State management
   const [searchTerm, setSearchTerm] = useState(
