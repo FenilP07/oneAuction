@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import useAuthStore from "../../store/authStore";
 import  {getAllCategories} from "../../services/categoryService";
 import  {createItem}  from "../../services/itemService";
-import { Upload, X, Plus, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Upload, X, Plus, AlertCircle, CheckCircle, Loader2, ArrowLeft } from 'lucide-react';
 
 
 
 const ItemListingPage = () => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -40,6 +42,11 @@ const ItemListingPage = () => {
     } finally {
       setCategoriesLoading(false);
     }
+  };
+
+  const handleGoBack = () => {
+    // Go back to previous page in history
+    navigate(-1);
   };
 
   const handleInputChange = (e) => {
@@ -180,8 +187,11 @@ const ItemListingPage = () => {
       images.forEach((img) => URL.revokeObjectURL(img.preview));
       setImages([]);
 
-      // Hide success message after 3 seconds
-      setTimeout(() => setSuccess(false), 3000);
+      // Navigate back to previous page after 2 seconds
+      setTimeout(() => {
+        setSuccess(false);
+        navigate(-1);
+      }, 2000);
     } catch (error) {
       console.error("Error creating item:", error);
       setErrors({
@@ -199,6 +209,13 @@ const ItemListingPage = () => {
             <AlertCircle className="text-secondary mb-3" size={48} />
             <h3 className="mb-2">Authentication Required</h3>
             <p className="text-muted">Please log in to create an item.</p>
+            <button 
+              onClick={handleGoBack}
+              className="btn btn-outline-secondary mt-3"
+            >
+              <ArrowLeft size={18} className="me-2" />
+              Go Back
+            </button>
           </div>
         </div>
       </div>
@@ -210,7 +227,17 @@ const ItemListingPage = () => {
       <div className="card">
         <div className="card-body">
           <div className="mb-4">
-            <h2 className="card-title">Create New Item</h2>
+            <div className="d-flex align-items-center mb-3">
+              <button 
+                onClick={handleGoBack}
+                className="btn btn-outline-secondary me-3"
+                type="button"
+              >
+                <ArrowLeft size={18} className="me-2" />
+                Back
+              </button>
+              <h2 className="card-title mb-0">Create New Item</h2>
+            </div>
             <p className="text-muted">
               Add a new item to the auction. Your item will be reviewed before going live.
             </p>
@@ -220,7 +247,7 @@ const ItemListingPage = () => {
             <div className="alert alert-success mb-4">
               <div className="d-flex align-items-center">
                 <CheckCircle className="me-2" size={20} />
-                <span>Item created successfully! It's now pending approval.</span>
+                <span>Item created successfully! Redirecting back...</span>
               </div>
             </div>
           )}
@@ -383,7 +410,15 @@ const ItemListingPage = () => {
               )}
             </div>
 
-            <div className="d-flex justify-content-end pt-3">
+            <div className="d-flex justify-content-between pt-3">
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="btn btn-outline-secondary"
+              >
+                <ArrowLeft size={18} className="me-2" />
+                Cancel
+              </button>
               <button
                 type="submit"
                 disabled={loading}
