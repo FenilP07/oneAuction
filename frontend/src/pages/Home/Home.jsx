@@ -8,6 +8,7 @@ import { faArrowTrendUp, faUsers, faMoneyBillTransfer, faEarthAmericas, faGavel,
 import './Home.css';
 
 const Home = () => {
+    
     return (
         <>
             <Navbar />
@@ -68,7 +69,7 @@ const Home = () => {
                         </div>
                     </div>
                     <div className="text-center mt-4">
-                        <button className="btn btn-outline-light btn-lg">Browse Auctions</button>
+                       <Link to="/browseAuctions" className="btn btn-outline-light btn-lg">Browse Auctions</Link>
                     </div>
                 </section>
 

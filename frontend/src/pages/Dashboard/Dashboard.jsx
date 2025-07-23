@@ -35,7 +35,7 @@ import {
 import useAuthStore from "../../store/authStore";
 import { getMyAuctions, getMyBids } from "../../services/auctionService";
 import { getMyItems } from "../../services/itemService";
-import "./dashboard.css"
+import "./dashboard.css";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -96,149 +96,161 @@ const Dashboard = () => {
     checkAndFetch();
   }, [user, activeTab]);
 
-const fetchDashboardData = async (role) => {
-  setLoading(true);
-  setErrors({ items: null, auctions: null, bids: null });
-  setStats({
-    itemsListed: 0,
-    auctionsCreated: 0,
-    activeAuctions: 0,
-    pendingApprovals: 0,
-    bidsPlaced: 0,
-    itemsWon: 0,
-    watchlist: 0,
-    totalSpent: 0,
-  });
+  const fetchDashboardData = async (role) => {
+    setLoading(true);
+    setErrors({ items: null, auctions: null, bids: null });
+    setStats({
+      itemsListed: 0,
+      auctionsCreated: 0,
+      activeAuctions: 0,
+      pendingApprovals: 0,
+      bidsPlaced: 0,
+      itemsWon: 0,
+      watchlist: 0,
+      totalSpent: 0,
+    });
 
-  try {
-    if (activeTab === "auctioneer" && ["admin", "user"].includes(role)) {
-      console.log("Fetching data for auctioneer...");
-      const [itemsRes, auctionsRes] = await Promise.all([
-        retryRequest(() => getMyItems()).catch((err) => {
-          console.error("getMyItems failed:", err.message);
-          setErrors((prev) => ({
-            ...prev,
-            items: err.message || "Failed to fetch items",
-          }));
-          return { items: [] };
-        }),
-        retryRequest(() => getMyAuctions()).catch((err) => {
-          console.error("getMyAuctions failed:", err.message);
-          setErrors((prev) => ({
-            ...prev,
-            auctions: err.message || "Failed to fetch auctions",
-          }));
-          return [];
-        }),
-      ]);
+    try {
+      if (activeTab === "auctioneer" && ["admin", "user"].includes(role)) {
+        console.log("Fetching data for auctioneer...");
+        const [itemsRes, auctionsRes] = await Promise.all([
+          retryRequest(() => getMyItems()).catch((err) => {
+            console.error("getMyItems failed:", err.message);
+            setErrors((prev) => ({
+              ...prev,
+              items: err.message || "Failed to fetch items",
+            }));
+            return { items: [] };
+          }),
+          retryRequest(() => getMyAuctions()).catch((err) => {
+            console.error("getMyAuctions failed:", err.message);
+            setErrors((prev) => ({
+              ...prev,
+              auctions: err.message || "Failed to fetch auctions",
+            }));
+            return [];
+          }),
+        ]);
 
-      const items = itemsRes.items || [];
-      const auctions = auctionsRes || [];
+        const items = itemsRes.items || [];
+        const auctions = auctionsRes || [];
 
-      // Sort items by createdAt (newest first)
-      const sortedItems = items.sort((a, b) => 
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      );
+        // Sort items by createdAt (newest first)
+        const sortedItems = items.sort(
+          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
 
-      // Sort auctions by auction_start_time or createdAt (newest first)
-      const sortedAuctions = auctions.sort((a, b) => 
-        new Date(b.auction_start_time || b.createdAt || 0) - 
-        new Date(a.auction_start_time || a.createdAt || 0)
-      );
+        // Sort auctions by auction_start_time or createdAt (newest first)
+        const sortedAuctions = auctions.sort(
+          (a, b) =>
+            new Date(b.auction_start_time || b.createdAt || 0) -
+            new Date(a.auction_start_time || a.createdAt || 0)
+        );
 
-      console.log("Fetched items:", sortedItems.length);
-      console.log("Fetched auctions:", sortedAuctions.length);
+        console.log("Fetched items:", sortedItems.length);
+        console.log("Fetched auctions:", sortedAuctions.length);
 
-      setMyItems(sortedItems);
-      setMyAuctions(sortedAuctions);
+        setMyItems(sortedItems);
+        setMyAuctions(sortedAuctions);
 
-      const pendingItems = sortedItems.filter(
-        (item) => item.status === "pending_approval"
-      ).length;
-      const activeAuctions = sortedAuctions.filter(
-        (auction) => auction.auction_status === "active"
-      ).length;
+        const pendingItems = sortedItems.filter(
+          (item) => item.status === "pending_approval"
+        ).length;
+        const activeAuctions = sortedAuctions.filter(
+          (auction) => auction.auction_status === "active"
+        ).length;
 
-      setStats((prev) => ({
-        ...prev,
-        itemsListed: sortedItems.length,
-        auctionsCreated: sortedAuctions.length,
-        activeAuctions,
-        pendingApprovals: pendingItems,
-      }));
-
-      generatePerformanceData(sortedItems, sortedAuctions);
-    } else if (activeTab === "bidder") {
-      console.log("Fetching data for bidder...");
-
-      const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
-        console.error("getMyBids failed:", err.message);
-        setErrors((prev) => ({
+        setStats((prev) => ({
           ...prev,
-          bids: err.message || "Failed to fetch bids",
+          itemsListed: sortedItems.length,
+          auctionsCreated: sortedAuctions.length,
+          activeAuctions,
+          pendingApprovals: pendingItems,
         }));
-        return {
-          data: {
-            stats: { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 },
-            active: [],
-            won: [],
-            lost: [],
-          },
-        };
-      });
 
-      // Ensure bidsRes.data is defined, provide fallback
-      const { stats = { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 }, active = [], won = [], lost = [] } = bidsRes || {};
+        generatePerformanceData(sortedItems, sortedAuctions);
+      } else if (activeTab === "bidder") {
+        console.log("Fetching data for bidder...");
 
-      // Combine active, won, and lost bids for the bidding activity table
-      const allBids = [
-        ...(Array.isArray(active) ? active.map((bid) => ({
-          _id: bid.bid_id,
-          item: { _id: bid.item_id, name: bid.item_name },
-          amount: bid.amount,
-          status: bid.status,
-          timeLeft: bid.timeLeft,
-          createdAt: bid.createdAt || bid.bid_time || new Date(), // Use bid_time or createdAt if available
-        })) : []),
-        ...(Array.isArray(won) ? won.map((bid) => ({
-          _id: bid.bid_id,
-          item: { _id: bid.item_id, name: bid.item_name },
-          amount: bid.final_price || bid.amount,
-          status: bid.status,
-          timeLeft: bid.timeLeft || "Ended",
-          createdAt: bid.createdAt || bid.bid_time || new Date(),
-        })) : []),
-        ...(Array.isArray(lost) ? lost.map((bid) => ({
-          _id: bid.bid_id,
-          item: { _id: bid.item_id, name: bid.item_name },
-          amount: bid.final_price || bid.amount,
-          status: bid.status,
-          timeLeft: bid.timeLeft || "Ended",
-          createdAt: bid.createdAt || bid.bid_time || new Date(),
-        })) : []),
-      ];
+        const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
+          console.error("getMyBids failed:", err.message);
+          setErrors((prev) => ({
+            ...prev,
+            bids: err.message || "Failed to fetch bids",
+          }));
+          return {
+            data: {
+              stats: { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 },
+              active: [],
+              won: [],
+              lost: [],
+            },
+          };
+        });
 
-      // Sort bids by createdAt (newest first)
-      const sortedBids = allBids.sort((a, b) => 
-        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      );
+        // Ensure bidsRes.data is defined, provide fallback
+        const {
+          stats = { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 },
+          active = [],
+          won = [],
+          lost = [],
+        } = bidsRes || {};
 
-      console.log("Fetched bids:", sortedBids.length);
+        // Combine active, won, and lost bids for the bidding activity table
+        const allBids = [
+          ...(Array.isArray(active)
+            ? active.map((bid) => ({
+                _id: bid.bid_id,
+                item: { _id: bid.item_id, name: bid.item_name },
+                amount: bid.amount,
+                status: bid.status,
+                timeLeft: bid.timeLeft,
+                createdAt: bid.createdAt || bid.bid_time || new Date(), // Use bid_time or createdAt if available
+              }))
+            : []),
+          ...(Array.isArray(won)
+            ? won.map((bid) => ({
+                _id: bid.bid_id,
+                item: { _id: bid.item_id, name: bid.item_name },
+                amount: bid.final_price || bid.amount,
+                status: bid.status,
+                timeLeft: bid.timeLeft || "Ended",
+                createdAt: bid.createdAt || bid.bid_time || new Date(),
+              }))
+            : []),
+          ...(Array.isArray(lost)
+            ? lost.map((bid) => ({
+                _id: bid.bid_id,
+                item: { _id: bid.item_id, name: bid.item_name },
+                amount: bid.final_price || bid.amount,
+                status: bid.status,
+                timeLeft: bid.timeLeft || "Ended",
+                createdAt: bid.createdAt || bid.bid_time || new Date(),
+              }))
+            : []),
+        ];
 
-      setBiddingActivity(sortedBids);
-      setStats((prev) => ({
-        ...prev,
-        bidsPlaced: stats.bidsPlaced || 0,
-        itemsWon: stats.itemsWon || 0,
-        totalSpent: stats.totalSpent || 0,
-      }));
+        // Sort bids by createdAt (newest first)
+        const sortedBids = allBids.sort(
+          (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
+
+        console.log("Fetched bids:", sortedBids.length);
+
+        setBiddingActivity(sortedBids);
+        setStats((prev) => ({
+          ...prev,
+          bidsPlaced: stats.bidsPlaced || 0,
+          itemsWon: stats.itemsWon || 0,
+          totalSpent: stats.totalSpent || 0,
+        }));
+      }
+    } catch (error) {
+      console.error("Fetch dashboard data error:", error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Fetch dashboard data error:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
   const generatePerformanceData = (items, auctions) => {
     const monthlyData = items.reduce((acc, item) => {
       if (item.status === "available" || item.status === "sold") {
@@ -512,7 +524,21 @@ const fetchDashboardData = async (role) => {
                         variant="outline-primary"
                         size="sm"
                         className="me-2"
-                        onClick={() => navigate(`/auctions/${auction._id}`)}
+                        onClick={() => {
+                          const auctionType =
+                            auction.auctionType_id?.type_name?.toLowerCase();
+                          if (auctionType) {
+                            navigate(
+                              `/joinAuction/${auctionType}/${auction._id}`
+                            );
+                          } else {
+                            console.error(
+                              "Auction type not found for auction:",
+                              auction
+                            );
+                            // Fallback or show error message
+                          }
+                        }}
                       >
                         View
                       </Button>
