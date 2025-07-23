@@ -228,14 +228,14 @@ const ItemListingPage = () => {
         <div className="card-body">
           <div className="mb-4">
             <div className="d-flex align-items-center mb-3">
-              <button 
+              {/* <button 
                 onClick={handleGoBack}
                 className="btn btn-outline-secondary me-3"
                 type="button"
               >
                 <ArrowLeft size={18} className="me-2" />
                 Back
-              </button>
+              </button> */}
               <h2 className="card-title mb-0">Create New Item</h2>
             </div>
             <p className="text-muted">
@@ -411,14 +411,14 @@ const ItemListingPage = () => {
             </div>
 
             <div className="d-flex justify-content-between pt-3">
-              {/* <button
+              <button
                 type="button"
                 onClick={handleGoBack}
                 className="btn btn-outline-secondary"
               >
                 <ArrowLeft size={18} className="me-2" />
                 Cancel
-              </button> */}
+              </button>
               <button
                 type="submit"
                 disabled={loading}

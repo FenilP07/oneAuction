@@ -675,7 +675,7 @@ const JoinAuction = () => {
      <div className="back-button-container d-flex justify-content-start mt-4">
   <Button
     variant="outline-secondary"
-    onClick={() => navigate("/browse-auctions")}
+    onClick={() => navigate("/browseAuctions")}
     className="mb-4"
   >
     <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
