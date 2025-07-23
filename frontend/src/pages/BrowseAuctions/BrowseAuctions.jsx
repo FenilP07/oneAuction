@@ -710,7 +710,7 @@ const BrowseAuctions = () => {
                             {getAuctionTypeName(auction.auctionType_id)}
                           </span>
                           <button
-                            className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
+                            className="btn btn-link position-absolute top-100 end-0 mt-2"
                             onClick={() => toggleFavorite(auction._id)}
                             aria-label={
                               favorites.includes(auction._id)

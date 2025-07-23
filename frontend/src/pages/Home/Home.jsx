@@ -19,24 +19,16 @@ const Home = () => {
                         <div className="carousel-inner">
                             <div className="carousel-item active">
                                 <img src="/slider/1.png" className="d-block w-100" alt="Browse Auctions" />
-                                <div className="carousel-caption d-none d-md-block">
-                                    <h3>Browse Auctions</h3>
-                                    <p>Explore a wide range of items up for bid on OneAuction.</p>
-                                </div>
+                               
                             </div>
                             <div className="carousel-item">
                                 <img src="/slider/2.png" className="d-block w-100" alt="Bid & Win" />
-                                <div className="carousel-caption d-none d-md-block">
-                                    <h3>Bid & Win</h3>
-                                    <p>Place your bids and win exclusive items at great prices.</p>
-                                </div>
+                               
+                                 
                             </div>
                             <div className="carousel-item">
                                 <img src="/slider/3.png" className="d-block w-100" alt="Sell Items" />
-                                <div className="carousel-caption d-none d-md-block">
-                                    <h3>Sell Items</h3>
-                                    <p>List your items easily and reach a global audience.</p>
-                                </div>
+                              
                             </div>
                         </div>
                         <button className="carousel-control-prev" type="button" data-bs-target="#howItWorksCarousel" data-bs-slide="prev">
