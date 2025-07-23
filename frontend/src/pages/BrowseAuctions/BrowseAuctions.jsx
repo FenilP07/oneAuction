@@ -33,8 +33,6 @@ import {
   getAuctionPreview,
   getAuctionLeaderboard,
 } from "../../services/auctionService.js";
-import { debounce } from "lodash"; // Ensure lodash is installed
-import io from "socket.io-client"; // Add Socket.IO client
 import "./browseAuction.css";
 
 const BrowseAuctions = () => {
@@ -86,16 +84,6 @@ const BrowseAuctions = () => {
   const [toastMessage, setToastMessage] = useState("");
   const [toastVariant, setToastVariant] = useState("info");
 
-  // Socket.IO setup
-  const socket = useMemo(() => io("https://oneauctionbackend.onrender.com", {
-    // Replace with your backend URL
-    path: "/socket.io",
-    transports: ["websocket"],
-    auth: {
-      // Add authentication if required by your backend
-    },
-  }), []);
-
   // Memoized filter options
   const filterOptions = useMemo(
     () => ({
@@ -123,22 +111,6 @@ const BrowseAuctions = () => {
     []
   );
 
-  // Retry logic for API calls
-  const withRetry = async (fn, retries = 3, delay = 1000) => {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        return await fn();
-      } catch (err) {
-        if (attempt === retries) {
-          throw new Error(
-            `${err.message} (Attempt ${attempt}/${retries})`
-          );
-        }
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-  };
-
   // Update URL params when filters change
   const updateUrlParams = useCallback(() => {
     const params = new URLSearchParams();
@@ -157,7 +129,7 @@ const BrowseAuctions = () => {
     setSearchParams,
   ]);
 
-  // Fetch auctions with retry logic
+  // Fetch auctions with improved error handling
   const fetchAuctions = useCallback(
     async (showLoadingSpinner = true) => {
       try {
@@ -175,11 +147,7 @@ const BrowseAuctions = () => {
           sort: sortBy,
         };
 
-        console.log("Fetching auctions with params:", queryParams); // Debug
-
-        const data = await withRetry(() => getAllAuctions(queryParams));
-        console.log("Auctions response:", data); // Debug
-
+        const data = await getAllAuctions(queryParams);
         const mappedAuctions = data.auctions.map((auction) => ({
           ...auction,
           status: auction.auction_status || auction.status || "unknown",
@@ -193,8 +161,6 @@ const BrowseAuctions = () => {
 
         if (searchTerm && mappedAuctions.length > 0) {
           showNotification(`Found ${data.totalItems} auctions`, "success");
-        } else if (statusFilter === "active" && mappedAuctions.length === 0) {
-          showNotification("No active auctions found", "info");
         }
       } catch (err) {
         const errorMessage = err.message || "Failed to fetch auctions";
@@ -210,60 +176,6 @@ const BrowseAuctions = () => {
     [searchTerm, auctionType, statusFilter, currentPage, itemsPerPage, sortBy]
   );
 
-  // WebSocket listeners
-  useEffect(() => {
-    socket.on("connect", () => {
-      console.log("Connected to WebSocket server");
-      socket.emit("subscribeToAuctions");
-    });
-
-    socket.on("auctionStatusUpdate", (updatedAuction) => {
-      console.log("Received auctionStatusUpdate:", updatedAuction);
-      setAuctions((prevAuctions) => {
-        const updated = prevAuctions.map((auction) =>
-          auction._id === updatedAuction.auction_id
-            ? {
-                ...auction,
-                auction_status: updatedAuction.status,
-                auction_end_time: updatedAuction.ended_at || auction.auction_end_time,
-              }
-            : auction
-        );
-        // If the updated auction isn't in the current list but matches filters, add it
-        if (
-          !updated.includes(updatedAuction.auction_id) &&
-          (statusFilter === "all" || statusFilter === updatedAuction.status) &&
-          (auctionType === "all" || auctionType === updatedAuction.auctionType_id?.type_name)
-        ) {
-          updated.push({
-            ...updatedAuction,
-            status: updatedAuction.status,
-            end_time: updatedAuction.ended_at || updatedAuction.auction_end_time,
-            start_time: updatedAuction.auction_start_time,
-          });
-        }
-        return updated;
-      });
-      showNotification(
-        `Auction ${updatedAuction.auction_title} updated to ${updatedAuction.status}`,
-        "info"
-      );
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("WebSocket connection error:", err);
-      showNotification("Failed to connect to real-time updates", "error");
-    });
-
-    return () => {
-      socket.emit("unsubscribeFromAuctions");
-      socket.off("auctionStatusUpdate");
-      socket.off("connect");
-      socket.off("connect_error");
-      socket.disconnect();
-    };
-  }, [socket, statusFilter, auctionType]);
-
   // Debounced search effect
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
@@ -278,8 +190,6 @@ const BrowseAuctions = () => {
     sortBy,
     currentPage,
     itemsPerPage,
-    fetchAuctions,
-    updateUrlParams,
   ]);
 
   // Timer effect with performance optimization
@@ -347,8 +257,6 @@ const BrowseAuctions = () => {
       case "upcoming":
         return "bg-warning text-dark";
       case "ended":
-      case "completed":
-      case "cancelled":
         return "bg-danger";
       default:
         return "bg-secondary";
@@ -366,7 +274,7 @@ const BrowseAuctions = () => {
     setShowToast(true);
   };
 
-  const toggleFavorite = debounce((auctionId) => {
+  const toggleFavorite = (auctionId) => {
     const newFavorites = favorites.includes(auctionId)
       ? favorites.filter((id) => id !== auctionId)
       : [...favorites, auctionId];
@@ -376,14 +284,14 @@ const BrowseAuctions = () => {
       ? "added to"
       : "removed from";
     showNotification(`Auction ${action} favorites`, "success");
-  }, 300);
+  };
 
-  const fetchAuctionPreview = debounce(async (auctionId) => {
+  const fetchAuctionPreview = async (auctionId) => {
     try {
       setPreviewLoading(true);
       setPreviewError(null);
       setPreviewData(null);
-      const data = await withRetry(() => getAuctionPreview(auctionId));
+      const data = await getAuctionPreview(auctionId);
       const mappedData = {
         ...data.preview,
         status: data.preview.auction_status,
@@ -402,15 +310,15 @@ const BrowseAuctions = () => {
     } finally {
       setPreviewLoading(false);
     }
-  }, 300);
+  };
 
-  const fetchAuctionLeaderboard = debounce(async (auctionId) => {
+  const fetchAuctionLeaderboard = async (auctionId) => {
     try {
       setPreviewLoading(true);
       setPreviewError(null);
       setLeaderboardData(null);
 
-      const response = await withRetry(() => getAuctionLeaderboard(auctionId));
+      const response = await getAuctionLeaderboard(auctionId);
       console.log("Leaderboard response:", response);
 
       let responseData = null;
@@ -493,9 +401,9 @@ const BrowseAuctions = () => {
     } finally {
       setPreviewLoading(false);
     }
-  }, 300);
+  };
 
-  const handleJoinRoom = debounce((auction) => {
+  const handleJoinRoom = (auction) => {
     if (!auction || !auction._id) return;
     const type = auction.auctionType_id?.type_name?.toLowerCase();
     if (type === "sealed_bid") {
@@ -511,7 +419,7 @@ const BrowseAuctions = () => {
         state: { auction },
       });
     }
-  }, 300);
+  };
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -533,7 +441,7 @@ const BrowseAuctions = () => {
     setSearchTerm("");
     setAuctionType("all");
     setStatusFilter("all");
-    setSortBy("newest");
+    setSortBy("starting-soon");
     setCurrentPage(1);
     setSearchParams(new URLSearchParams());
     showNotification("Filters reset", "info");
@@ -758,8 +666,6 @@ const BrowseAuctions = () => {
                 <p className="text-muted">
                   {searchTerm
                     ? `No auctions match your search for "${searchTerm}"`
-                    : statusFilter === "active"
-                    ? "No active auctions at the moment"
                     : "Try adjusting your search filters"}
                 </p>
                 <button className="btn btn-primary" onClick={resetFilters}>
@@ -915,9 +821,11 @@ const BrowseAuctions = () => {
                                 status !== "completed" &&
                                 status !== "cancelled" && (
                                   <button
-                                    onClick={() => fetchAuctionPreview(auction._id)}
+                                    onClick={() =>
+                                      fetchAuctionPreview(auction._id)
+                                    }
                                     className="btn btn-sm btn-outline-primary"
-                                    disabled={!auction._id || previewLoading}
+                                    disabled={!auction._id}
                                     aria-label="Preview auction"
                                   >
                                     <FontAwesomeIcon
@@ -931,7 +839,7 @@ const BrowseAuctions = () => {
                                 <button
                                   onClick={() => handleJoinRoom(auction)}
                                   className="btn btn-sm btn-success"
-                                  disabled={!auction._id || previewLoading}
+                                  disabled={!auction._id}
                                   aria-label="Join auction room"
                                 >
                                   <FontAwesomeIcon
@@ -948,7 +856,7 @@ const BrowseAuctions = () => {
                                       fetchAuctionLeaderboard(auction._id)
                                     }
                                     className="btn btn-sm btn-outline-secondary"
-                                    disabled={!auction._id || previewLoading}
+                                    disabled={!auction._id}
                                     aria-label="View auction leaderboard"
                                   >
                                     <FontAwesomeIcon
@@ -963,7 +871,7 @@ const BrowseAuctions = () => {
                                   <button
                                     onClick={() => handleJoinRoom(auction)}
                                     className="btn btn-sm btn-outline-secondary"
-                                    disabled={!auction._id || previewLoading}
+                                    disabled={!auction._id}
                                     aria-label="Reveal sealed bid results"
                                   >
                                     <FontAwesomeIcon
@@ -1156,6 +1064,7 @@ const BrowseAuctions = () => {
             {toastMessage}
           </Toast.Body>
 
+          {/* Progress bar */}
           <div
             className="progress-bar-container"
             style={{

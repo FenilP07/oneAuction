@@ -24,19 +24,21 @@ const formatTimeLeft = (ms) => {
 };
 
 const createAuction = asyncHandler(async (req, res) => {
+   if (!req.body) {
+    throw new apiError(400, "Request body is missing or invalid");
+  }
   const {
     auctionType_id,
     auction_title,
     auction_start_time,
     auction_end_time,
+    auction_description,
     is_invite_only: rawIsInviteOnly,
     settings,
     hint,
   } = req.body;
 
-  if (!req.body) {
-    throw new apiError(400, "Request body is missing or invalid");
-  }
+
 
   let parsedSettings;
   if (typeof settings === "string") {
