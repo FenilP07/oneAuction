@@ -32,7 +32,7 @@ const auctionTypeSchema = new Schema(
 // Seed default auction types (run once during app initialization)
 auctionTypeSchema.statics.seedDefaults = async function () {
   const defaultTypes = [
-    { type_name: "live", description: "Real-time live auction with multiple items" },
+    // { type_name: "live", description: "Real-time live auction with multiple items" },
     { type_name: "sealed_bid", description: "Bidders submit hidden bids" },
     { type_name: "single_timed_item", description: "Timed auction for a single item" },
   ];

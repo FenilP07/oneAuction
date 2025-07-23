@@ -13,7 +13,7 @@ const CategoryList = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/category");
+      const response = await fetch("https://oneauctionbackend.onrender.com/api/category");
       const data = await response.json();
       if (data && data.data && data.data.categories) {
         setCategories(data.data.categories);

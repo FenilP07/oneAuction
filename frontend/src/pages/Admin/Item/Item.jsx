@@ -40,7 +40,7 @@ const Item = () => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:3000/api/admin/item/pending", {
+      const res = await fetch("https://oneauctionbackend.onrender.com/api/admin/item/pending", {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -61,7 +61,7 @@ const Item = () => {
     }
   };const fetchCategoryStats = async () => {
   try {
-    const res = await fetch("http://localhost:3000/api/category/stats", {
+    const res = await fetch("https://oneauctionbackend.onrender.com/api/category/stats", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

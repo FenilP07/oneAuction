@@ -214,6 +214,14 @@ auctionNamespace.on("connection", (socket) => {
       `User ${socket.user._id} (${socket.user.username || "Unknown"}) connected to auction namespace`
     );
 
+    socket.on("subscribeToAuctions", () => {
+      socket.join("auctions");
+      logger.info(`User ${socket.user._id} subscribed to auctions room`);
+    });
+    socket.on("unsubscribeFromAuctions", () => {
+      socket.leave("auctions");
+      logger.info(`User ${socket.user._id} unsubscribed from auctions room`);
+    });
     // Emit userJoined event on connection
     auctionNamespace.emit("userJoined", {
       user_id: socket.user._id,

@@ -600,7 +600,7 @@ const JoinAuction = () => {
               )}
             </Card>
 
-            {!isAuctionEnded && (
+            {!isAuctionEnded && !isAuctioneer && (
               <Card className="mb-4 shadow-sm rounded slide-in">
                 <Card.Body>
                   <EnhancedBidForm
@@ -612,12 +612,37 @@ const JoinAuction = () => {
                     onError={handleBidError}
                     isEnded={isAuctionEnded}
                   />
+                </Card.Body>
+              </Card>
+            )}
+
+            {!isAuctionEnded && isAuctioneer && (
+              <Card className="mb-4 shadow-sm rounded slide-in">
+                <Card.Body>
+                  <Alert variant="info" className="text-center" role="alert">
+                    As the auctioneer, you cannot place bids on your own
+                    auction.
+                  </Alert>
                   <EndAuctionEarlyButton
                     auction={auction}
                     userId={userId}
                     onEndSuccess={handleEndAuctionSuccess}
                     onError={handleEndAuctionError}
                   />
+                </Card.Body>
+              </Card>
+            )}
+
+            {isAuctionEnded && isAuctioneer && (
+              <Card className="mb-4 shadow-sm rounded slide-in">
+                <Card.Body>
+                  <Alert
+                    variant="secondary"
+                    className="text-center"
+                    role="alert"
+                  >
+                    This auction has ended.
+                  </Alert>
                 </Card.Body>
               </Card>
             )}

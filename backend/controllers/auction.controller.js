@@ -27,7 +27,7 @@ const createAuction = asyncHandler(async (req, res) => {
     auction_description,
     auction_start_time,
     auction_end_time,
-    is_invite_only: rawIsInviteOnly, // ← Rename during destructuring
+    is_invite_only: rawIsInviteOnly,
     settings,
     hint,
   } = req.body;
@@ -47,7 +47,6 @@ const createAuction = asyncHandler(async (req, res) => {
     parsedSettings = settings;
   }
 
-  // ← Now create a new variable with the converted value
   const is_invite_only = rawIsInviteOnly === "true" || rawIsInviteOnly === true;
 
   if (
@@ -190,13 +189,16 @@ const createAuction = asyncHandler(async (req, res) => {
       );
     }
 
+    // Emit WebSocket event for auction creation
+    emitAuctionStatusUpdate(newAuction);
+
     // Invalidate relevant caches
-    await redisClient.del(`auctions:all:*`); // Simplified for now; optimize later
+    await redisClient.del(`auctions:all:*`);
     await redisClient.del("auctions:all");
 
     const responseData = {
       auction: newAuction.toObject(),
-      session: null, // Remove AuctionSession lookup if not needed
+      session: null,
     };
 
     return res
@@ -1576,14 +1578,11 @@ const getMyBids = asyncHandler(async (req, res) => {
     )
   );
 });
-export const endAuctionEarly = async (req, res) => {
+const endAuctionEarly = asyncHandler(async (req, res) => {
   const { auctionId } = req.params;
 
-  // Early: Validate auction ID format before DB or session logic
   if (!mongoose.Types.ObjectId.isValid(auctionId)) {
-    return res
-      .status(400)
-      .json(new APIResponse(400, null, "Invalid auction ID format"));
+    throw new apiError(400, "Invalid auction ID format");
   }
 
   const session = await mongoose.startSession();
@@ -1712,22 +1711,8 @@ export const endAuctionEarly = async (req, res) => {
         }
       }
 
-      try {
-        await redisClient.del(`auction:${auctionId}`);
-        await redisClient.del(`auction:summary:${auctionId}`);
-        await redisClient.del(`auction:preview:${auctionId}`);
-        await redisClient.del(`leaderboard:${auctionId}`);
-        const allAuctionsKeys = await redisClient.keys(`auctions:all:*`);
-        if (allAuctionsKeys.length > 0) {
-          await redisClient.del(allAuctionsKeys);
-        }
-      } catch (redisError) {
-        console.error(
-          `Failed to clear caches for auction ${auctionId}:`,
-          redisError
-        );
-      }
-
+      // Emit WebSocket events
+      emitAuctionStatusUpdate(updatedAuction); // Add this
       try {
         auctionNamespace.to(auctionId.toString()).emit("auctionEndedEarly", {
           auction_id: auctionId,
@@ -1738,9 +1723,26 @@ export const endAuctionEarly = async (req, res) => {
           unique_bidders: auction.settings.unique_bidders,
         });
       } catch (socketError) {
-        console.error(
-          `Failed to emit WebSocket event for auction ${auctionId}:`,
+        logger.error(
+          `Failed to emit auctionEndedEarly for auction ${auctionId}:`,
           socketError
+        );
+      }
+
+      // Invalidate caches
+      try {
+        await redisClient.del(`auction:${auctionId}`);
+        await redisClient.del(`auction:summary:${auctionId}`);
+        await redisClient.del(`auction:preview:${auctionId}`);
+        await redisClient.del(`leaderboard:${auctionId}`);
+        const allAuctionsKeys = await redisClient.keys(`auctions:all:*`);
+        if (allAuctionsKeys.length > 0) {
+          await redisClient.del(allAuctionsKeys);
+        }
+      } catch (redisError) {
+        logger.error(
+          `Failed to clear caches for auction ${auctionId}:`,
+          redisError
         );
       }
 
@@ -1759,29 +1761,14 @@ export const endAuctionEarly = async (req, res) => {
       );
     });
   } catch (error) {
-    console.error("Error ending auction early:", error);
-
-    // If it's already an apiError, don't wrap it
-    if (error instanceof apiError) {
-      return res
-        .status(error.statusCode)
-        .json(new APIResponse(error.statusCode, null, error.message));
-    }
-
-    // Otherwise, treat it as internal error
-    return res
-      .status(500)
-      .json(
-        new APIResponse(
-          500,
-          null,
-          `Internal server error while ending auction: ${error.message}`
-        )
-      );
+    logger.error("Error ending auction early:", error);
+    throw error instanceof apiError
+      ? error
+      : new apiError(500, `Internal server error while ending auction: ${error.message}`);
   } finally {
     await session.endSession();
   }
-};
+});
 
 export {
   createAuction,
@@ -1797,4 +1784,5 @@ export {
   getSealedBidLeaderboard,
   decryptAmount,
   getMyBids,
+  endAuctionEarly
 };

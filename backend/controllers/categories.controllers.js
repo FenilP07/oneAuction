@@ -137,6 +137,34 @@ const deleteCategory = asyncHandler(async (req, res) => {
     .status(200)
     .json(new APIResponse(200, null, "Category deleted successfully"));
 });
+const getCategoryStats = asyncHandler(async (req, res) => {
+  logger.info("Fetching category statistics");
+
+  try {
+    // Get total count of all categories
+    const total = await Category.countDocuments({});
+    
+    // Get count of active categories
+    const active = await Category.countDocuments({ is_active: true });
+    
+    // Get count of inactive categories
+    const inactive = await Category.countDocuments({ is_active: false });
+
+    const stats = {
+      total,
+      active,
+      inactive
+    };
+
+    logger.info(`Category stats retrieved: ${JSON.stringify(stats)}`);
+    return res.status(200).json(
+      new APIResponse(200, stats, "Category statistics retrieved successfully")
+    );
+  } catch (error) {
+    logger.error(`Error fetching category stats: ${error.message}`);
+    throw new apiError(500, "Failed to fetch category statistics");
+  }
+});
 
 export {
   createCategory,
@@ -144,4 +172,5 @@ export {
   getCategoryById,
   updateCategory,
   deleteCategory,
+  getCategoryStats
 };

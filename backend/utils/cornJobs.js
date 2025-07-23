@@ -10,6 +10,7 @@ import logger from "./logger.js";
 import { moveToNextItemWithTransaction } from "../controllers/liveAuction.controllers.js";
 import { redisClient } from "../app.js";
 import { decryptAmount } from "./encryption.js";
+import { emitAuctionStatusUpdate } from "./socketUtils.js"; // Add this import
 
 let cachedAuctionTypes = null;
 
@@ -37,7 +38,6 @@ const clearAuctionCache = async () => {
   }
 };
 
-// Helper function to execute operations with transaction
 const executeWithTransaction = async (operation, errorMessage) => {
   const session = await mongoose.startSession();
   try {
@@ -56,7 +56,6 @@ const executeWithTransaction = async (operation, errorMessage) => {
   }
 };
 
-// NEW: Function to change unsold items to available
 const processUnsoldItems = async (now) => {
   try {
     const unsoldItems = await Item.find({
@@ -94,7 +93,6 @@ const processUnsoldItems = async (now) => {
   }
 };
 
-// 🔧 FIXED: Process upcoming auctions that should become active
 const processUpcomingAuctions = async (now, auctionTypes) => {
   const upcomingAuctions = await Auction.find({
     auction_status: "upcoming",
@@ -112,7 +110,6 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
   for (const auction of upcomingAuctions) {
     try {
       await executeWithTransaction(async (session) => {
-        // 🔧 FIX: Double-check the auction still needs to be activated
         const currentAuction = await Auction.findById(auction._id).session(
           session
         );
@@ -125,16 +122,13 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
           `Activating auction ${auction._id} (${auction.auction_title}) - Start time: ${auction.auction_start_time}, Current time: ${now}`
         );
 
-        await Auction.findByIdAndUpdate(
-          auction._id,
-          {
-            auction_status: "active",
-            updatedAt: now, // 🔧 FIX: Ensure updatedAt is set
-          },
-          { session }
-        );
+        currentAuction.auction_status = "active";
+        currentAuction.updatedAt = now;
+        await currentAuction.save({ session });
 
-        // 🔧 FIX: Handle live auction sessions properly
+        // Emit WebSocket event
+        emitAuctionStatusUpdate(currentAuction);
+
         if (auction.auctionType_id.equals(auctionTypes.live._id)) {
           const existingSession = await AuctionSession.findOne({
             auction_id: auction._id,
@@ -183,7 +177,6 @@ const processUpcomingAuctions = async (now, auctionTypes) => {
   }
 };
 
-// 🔧 FIXED: Process expired auctions (sealed bid and timed)
 const processExpiredAuctions = async (now, auctionTypes) => {
   const expiredAuctions = await Auction.find({
     auction_status: "active",
@@ -203,7 +196,6 @@ const processExpiredAuctions = async (now, auctionTypes) => {
       ? auction.settings.sealed_bid_deadline || auction.auction_end_time
       : auction.auction_end_time;
 
-    // 🔧 FIX: Better deadline comparison
     const deadlineTime = new Date(deadline).getTime();
     const nowTime = now.getTime();
 
@@ -222,14 +214,17 @@ const processExpiredAuctions = async (now, auctionTypes) => {
 
           await processAuctionWinner(auction, itemId, auctionTypes, session);
 
-          await Auction.findByIdAndUpdate(
+          const updatedAuction = await Auction.findByIdAndUpdate(
             auction._id,
             {
               auction_status: "completed",
-              updatedAt: now, // 🔧 FIX: Ensure updatedAt is set
+              updatedAt: now,
             },
-            { session }
+            { session, new: true }
           );
+
+          // Emit WebSocket event
+          emitAuctionStatusUpdate(updatedAuction);
 
           return auction._id;
         }, `Error completing auction ${auction._id}`);
@@ -252,7 +247,6 @@ const processExpiredAuctions = async (now, auctionTypes) => {
   }
 };
 
-// 🔧 FIXED: Helper function to process auction winner determination
 const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
   const targetPrice = auction.settings?.reserve_price ?? 0;
   let winnerBid = null;
@@ -284,7 +278,6 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
         })
         .filter((b) => b.actualAmount !== null);
 
-      // Closest bid to reserve/target price wins
       winnerBid = bidsWithAmounts.reduce((closest, bid) => {
         const bidDiff = Math.abs(bid.actualAmount - targetPrice);
         const closestDiff = closest
@@ -293,7 +286,6 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
         return bidDiff < closestDiff ? bid : closest;
       }, null);
 
-      // Reset all bids to not winner
       await Bid.updateMany(
         { auction_id: auction._id, item_id: itemId },
         { is_winner: false },
@@ -305,7 +297,6 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
       );
     }
   } else if (auction.auctionType_id.equals(auctionTypes.timed._id)) {
-    // Timed auctions use highest bid
     winnerBid = await Bid.findOne({
       auction_id: auction._id,
       item_id: itemId,
@@ -343,7 +334,6 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
   }
 };
 
-// Process active live auction sessions
 const processActiveSessions = async (now, io) => {
   const activeSessions = await AuctionSession.find({
     status: "active",
@@ -405,6 +395,16 @@ const processActiveSessions = async (now, io) => {
             session_id: session._id,
           });
           await redisClient.del(`leaderboard:${session.auction_id}`);
+
+          const updatedAuction = await Auction.findByIdAndUpdate(
+            session.auction_id,
+            {
+              auction_status: "completed",
+              updatedAt: now,
+            },
+            { new: true }
+          );
+          emitAuctionStatusUpdate(updatedAuction);
         } else {
           logger.info(
             `Moved to next item ${nextItemId} for auction ${session.auction_id}`
@@ -422,12 +422,10 @@ const processActiveSessions = async (now, io) => {
   }
 };
 
-// 🔧 FIXED: Main cron job with better error handling and logging
 const auctionCronJob = (io) => {
   logger.info("Initializing auction cron job...");
 
   cron.schedule("*/10 * * * * *", async () => {
-    // Run every 10 seconds
     const startTime = Date.now();
     const now = new Date();
 
@@ -436,7 +434,7 @@ const auctionCronJob = (io) => {
 
       const auctionTypes = await getAuctionTypes();
 
-      if (!auctionTypes.live || !auctionTypes.sealed || !auctionTypes.timed) {
+      if (!auctionTypes.sealed || !auctionTypes.timed) {
         logger.error("[CRON] Failed to load auction types");
         return;
       }
@@ -450,7 +448,6 @@ const auctionCronJob = (io) => {
 
       const results = await Promise.allSettled(promises);
 
-      // 🔧 FIX: Log any rejected promises
       results.forEach((result, index) => {
         if (result.status === "rejected") {
           const processNames = [

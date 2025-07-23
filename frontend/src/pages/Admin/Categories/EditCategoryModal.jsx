@@ -27,7 +27,7 @@ const EditCategoryModal = ({ category, onClose, onUpdated }) => {
       data.append("image", formData.image);
     }
 
-    const response = await fetch(`http://localhost:3000/api/category/${category._id}`, {
+    const response = await fetch(`https://oneauctionbackend.onrender.com/api/category/${category._id}`, {
       method: "PUT",
       body: data,
     });

@@ -15,7 +15,7 @@ export const useAuctionSocket = (
     if (auctionType !== "single_timed_item" || !auctionId || !accessToken)
       return;
 
-    const socket = io("http://localhost:3000/auctions", {
+    const socket = io("https://oneauctionbackend.onrender.com/auctions", {
       auth: { token: accessToken },
       transports: ["websocket"],
       reconnection: true,

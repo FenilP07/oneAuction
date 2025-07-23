@@ -30,12 +30,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
     startDate: "",
     startTime: "",
     timePeriod: "",
-    sealed_bid_deadline: "", // Added for sealed bid
+    sealed_bid_deadline: "",
     agreement: false,
     items: [],
     sequence: [],
     banner_image: null,
-    hint: "", // For sealed bid
+    hint: "",
   });
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,9 +44,13 @@ const AuctionModal = ({ onAuctionCreate }) => {
   const itemsPerPage = 10;
 
   const now = new Date();
-  const currentDate = now.toISOString().split("T")[0];
+  const currentDate = now.toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).split("/").reverse().join("-"); // Formats as YYYY-MM-DD for Canada
   const currentTime = now
-    .toLocaleTimeString("en-US", {
+    .toLocaleTimeString("en-CA", {
       hour12: false,
       hour: "2-digit",
       minute: "2-digit",
@@ -170,10 +174,10 @@ const AuctionModal = ({ onAuctionCreate }) => {
     const startDateTime = new Date(
       `${auctionData.startDate}T${auctionData.startTime}`
     );
+    // startDateTime is in local time (e.g., EDT for Canada); ensure backend expects UTC
     if (startDateTime < now) return "Start time must be in the future";
     if (!auctionData.timePeriod || auctionData.timePeriod <= 0)
       return "Duration must be a positive number";
-    if (auctionData.timePeriod > 1440) return "Duration cannot exceed 24 hours";
     if (!auctionData.agreement)
       return "You must agree to the terms and conditions";
     if (auctionData.items.length === 0) return "At least one item is required";
@@ -191,7 +195,6 @@ const AuctionModal = ({ onAuctionCreate }) => {
       return "Timed and sealed bid auctions can only have one item";
     }
 
-    // Enhanced hint validation for sealed bid auctions
     if (selectedAuctionType.type_name === "sealed_bid") {
       if (!auctionData.hint || auctionData.hint.trim().length === 0) {
         return "Hint is required for sealed bid auctions";
@@ -211,9 +214,8 @@ const AuctionModal = ({ onAuctionCreate }) => {
           deadline < startDateTime ||
           deadline >
             new Date(
-              `${auctionData.startDate}T${auctionData.startTime}`
-            ).getTime() +
-              auctionData.timePeriod * 60000)
+              startDateTime.getTime() + auctionData.timePeriod * 60000
+            ))
       ) {
         return "Sealed bid deadline must be between start time and end time";
       }
@@ -251,7 +253,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
     ).toISOString();
     const deadline = sealed_bid_deadline
       ? new Date(sealed_bid_deadline).toISOString()
-      : auction_end_time; // Default to end time if not set
+      : auction_end_time;
 
     const payload = {
       auctionType_id: selectedAuctionType._id,
@@ -301,7 +303,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
       startDate: currentDate,
       startTime: currentTime,
       timePeriod: "",
-      sealed_bid_deadline: "", // Reset deadline
+      sealed_bid_deadline: "",
       agreement: false,
       items: [],
       sequence: [],
@@ -724,14 +726,21 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                 ).getTime() +
                                   auctionData.timePeriod * 60000
                               )
-                                .toISOString()
-                                .slice(0, 16)}
+                                .toLocaleString("en-CA", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })
+                                .replace(/(\d+)\/(\d+)\/(\d+), (\d+:\d+)/, "$3-$1-$2T$4")}
                               onChange={handleInputChange}
                               size="sm"
                               required
                             />
                             <Form.Text muted>
-                              Must be between start time and end time
+                              Deadline is shown in your local time zone (EDT). Stored in UTC.
                             </Form.Text>
                           </Form.Group>
                         </>
@@ -787,13 +796,22 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           value={auctionData.startTime}
                           min={
                             auctionData.startDate === currentDate
-                              ? currentTime
+                              ? new Date()
+                                  .toLocaleTimeString("en-CA", {
+                                    hour12: false,
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                  .slice(0, 5)
                               : "00:00"
                           }
                           onChange={handleInputChange}
                           size="sm"
                           required
                         />
+                        <Form.Text muted>
+                          Time is shown in your local time zone (EDT). Auction times are stored in UTC.
+                        </Form.Text>
                       </Form.Group>
 
                       <Form.Group className="mb-2" controlId="timePeriod">
@@ -807,13 +825,12 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           onChange={handleInputChange}
                           size="sm"
                           min="1"
-                          max="1440"
                           required
                           placeholder="e.g., 60"
                           aria-describedby="timePeriod_help"
                         />
                         <Form.Text id="timePeriod_help" muted>
-                          Max 24 hours (1440 minutes)
+                          Enter duration in minutes
                         </Form.Text>
                       </Form.Group>
 

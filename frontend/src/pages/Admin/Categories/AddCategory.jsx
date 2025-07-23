@@ -50,7 +50,7 @@ const AddCategory = () => {
         data.append("image", formData.image);
       }
 
-      const response = await fetch("http://localhost:3000/api/category/create", {
+      const response = await fetch("https://oneauctionbackend.onrender.com/api/category/create", {
         method: "POST",
         body: data,
       });

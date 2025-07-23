@@ -2,9 +2,8 @@ import React from "react";
 import { NavLink, Link, useNavigate } from "react-router-dom";
 import { logoutUser } from "../services/userService";
 import useAuthStore from "../store/authStore";
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min';
-
+import "bootstrap/dist/css/bootstrap.min.css";
+import "bootstrap/dist/js/bootstrap.bundle.min";
 
 const AdminNavbar = () => {
   const { user, clearAuth } = useAuthStore();
@@ -14,18 +13,21 @@ const AdminNavbar = () => {
     try {
       await logoutUser();
       clearAuth();
-      navigate('/login');
+      navigate("/login");
     } catch (error) {
-      console.error('Logout failed:', error.message);
+      console.error("Logout failed:", error.message);
       clearAuth();
-      navigate('/login');
+      navigate("/login");
     }
   };
 
   return (
-    <nav className="navbar navbar-expand-lg bgOne navbar-dark" aria-label="Admin navigation">
+    <nav
+      className="navbar navbar-expand-lg bgOne navbar-dark"
+      aria-label="Admin navigation"
+    >
       <div className="container-fluid">
-        <Link className="navbar-brand" to="/admin/dashboard" aria-label="Admin Dashboard">
+        <Link className="navbar-brand" to="/home" aria-label="Go to Homepage">
           <img src="/images/AuctionLogo.png" alt="Admin Logo" height="32" />
         </Link>
 
@@ -44,7 +46,12 @@ const AdminNavbar = () => {
         <div className="collapse navbar-collapse" id="adminNavbar">
           <ul className="navbar-nav me-auto">
             <li className="nav-item">
-              <NavLink className="nav-link fw-bold" to="/admin/dashboard" activeClassName="active">
+              <NavLink
+                to="/admin/dashboard"
+                className={({ isActive }) =>
+                  `nav-link fw-bold ${isActive ? "active" : ""}`
+                }
+              >
                 Dashboard
               </NavLink>
             </li>
@@ -54,24 +61,33 @@ const AdminNavbar = () => {
               </NavLink>
             </li> */}
 
-
-             <li className="nav-item">
-              <NavLink className="nav-link fw-bold" to="/admin/categorieslist" activeClassName="active">
+            <li className="nav-item">
+              <NavLink
+                to="/admin/categorieslist"
+                className={({ isActive }) =>
+                  `nav-link fw-bold ${isActive ? "active" : ""}`
+                }
+              >
                 Category
               </NavLink>
             </li>
-            
-            <li className="nav-item">
-              <NavLink className="nav-link fw-bold" to="/admin/auction" activeClassName="active">
+
+            {/* <li className="nav-item">
+              <NavLink
+                to="/admin/auction"
+                className={({ isActive }) =>
+                  `nav-link fw-bold ${isActive ? "active" : ""}`
+                }
+              >
                 Auction
               </NavLink>
-            </li>
+            </li> */}
           </ul>
 
           <div className="d-flex">
             {user && (
-              <button 
-                className="btn btn-outline-light btn-sm" 
+              <button
+                className="btn btn-outline-light btn-sm"
                 onClick={handleLogout}
                 aria-label="Log out"
               >
