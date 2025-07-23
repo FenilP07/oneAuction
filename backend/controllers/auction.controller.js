@@ -9,7 +9,7 @@ import Bid from "../models/bid.models.js";
 import User from "../models/users.models.js";
 import mongoose from "mongoose";
 import upload from "../utils/cloudinary.js";
-import { auctionNamespace, redisClient } from "../app.js";
+import { auctionNamespace } from "../app.js";
 import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
 import { encryptAmount, decryptAmount } from "../utils/encryption.js";
@@ -22,11 +22,11 @@ const formatTimeLeft = (ms) => {
   const s = Math.floor((ms % 60000) / 1000);
   return `${m}m ${s}s`;
 };
+
 const createAuction = asyncHandler(async (req, res) => {
   const {
     auctionType_id,
     auction_title,
-    auction_description,
     auction_start_time,
     auction_end_time,
     is_invite_only: rawIsInviteOnly,
@@ -194,10 +194,6 @@ const createAuction = asyncHandler(async (req, res) => {
     // Emit WebSocket event for auction creation
     emitAuctionStatusUpdate(newAuction);
 
-    // Invalidate relevant caches
-    await redisClient.del(`auctions:all:*`);
-    await redisClient.del("auctions:all");
-
     const responseData = {
       auction: newAuction.toObject(),
       session: null,
@@ -216,6 +212,7 @@ const createAuction = asyncHandler(async (req, res) => {
     throw new apiError(500, `Failed to create auction: ${error.message}`);
   }
 });
+
 const getAllAuctions = asyncHandler(async (req, res) => {
   const {
     search,
@@ -230,21 +227,6 @@ const getAllAuctions = asyncHandler(async (req, res) => {
   const limit = parseInt(limitStr, 10) || 10;
   const skip = (page - 1) * limit;
 
-  // Create a sorted query string for cache key
-  const sortedQuery = Object.keys(req.query)
-    .sort()
-    .reduce((obj, key) => {
-      obj[key] = req.query[key];
-      return obj;
-    }, {});
-  const cacheKey = `auctions:all:${JSON.stringify(sortedQuery)}`;
-
-  // Check cache first
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
-  }
-
   // Build query object
   const query = { deletedAt: null };
 
@@ -258,21 +240,7 @@ const getAllAuctions = asyncHandler(async (req, res) => {
 
   // Type filter (find AuctionType _id by type_name)
   if (type && type !== "all") {
-    const cacheTypeKey = `auctionType:${type}`;
-    let auctionType = await redisClient.get(cacheTypeKey);
-    if (!auctionType) {
-      auctionType = await AuctionType.findOne({ type_name: type }).lean();
-      if (auctionType) {
-        await redisClient.setEx(
-          cacheTypeKey,
-          86400,
-          JSON.stringify(auctionType)
-        ); // Cache for 24 hours
-      }
-    } else {
-      auctionType = JSON.parse(auctionType);
-    }
-
+    const auctionType = await AuctionType.findOne({ type_name: type }).lean();
     if (auctionType) {
       query.auctionType_id = auctionType._id;
     } else {
@@ -427,8 +395,6 @@ const getAllAuctions = asyncHandler(async (req, res) => {
     "Auctions retrieved successfully"
   );
 
-  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response)); // Cache for 1 hour
-
   return res.status(200).json(response);
 });
 
@@ -437,12 +403,6 @@ const getAuctionById = asyncHandler(async (req, res) => {
 
   if (!mongoose.Types.ObjectId.isValid(auction_id)) {
     throw new apiError(400, "Invalid auction ID");
-  }
-
-  const cacheKey = `auction:${auction_id}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
   }
 
   // Get the auction
@@ -541,7 +501,6 @@ const getAuctionById = asyncHandler(async (req, res) => {
     "Auction retrieved successfully"
   );
 
-  await redisClient.setEx(cacheKey, 1800, JSON.stringify(response)); // Cache for 30 minutes
   return res.status(200).json(response);
 });
 
@@ -550,12 +509,6 @@ const getAuctionSummary = asyncHandler(async (req, res) => {
 
   if (!mongoose.Types.ObjectId.isValid(auction_id)) {
     throw new apiError(400, "Invalid auction ID");
-  }
-
-  const cacheKey = `auction:summary:${auction_id}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
   }
 
   const auction = await Auction.findOne({
@@ -605,7 +558,7 @@ const getAuctionSummary = asyncHandler(async (req, res) => {
       total_items: totalItems,
       sold_items: soldItems.length,
       total_bids: totalBids,
-      unique_bidders: auction.settings.unique_bidders || 0, // Use stored value
+      unique_bidders: auction.settings.unique_bidders || 0,
       total_value: totalValue,
     },
     recent_activity: recentBids.map((bid) => ({
@@ -625,7 +578,6 @@ const getAuctionSummary = asyncHandler(async (req, res) => {
     { summary },
     "Auction summary retrieved successfully"
   );
-  await redisClient.setEx(cacheKey, 900, JSON.stringify(response)); // Cache for 15 minutes
   return res.status(200).json(response);
 });
 
@@ -634,12 +586,6 @@ const getAuctionPreview = asyncHandler(async (req, res) => {
 
   if (!auction_id) {
     throw new apiError(400, "Auction ID is required");
-  }
-
-  const cacheKey = `auction:preview:${auction_id}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
   }
 
   const auction = await Auction.findOne({
@@ -668,7 +614,7 @@ const getAuctionPreview = asyncHandler(async (req, res) => {
   const previewItemsWithImages = await Promise.all(
     previewItems.map(async (item) => {
       const images = await ItemImages.find({ item_id: item._id })
-        .sort({ is_primary: -1, order: 1 }) // Primary first
+        .sort({ is_primary: -1, order: 1 })
         .select("image_url is_primary")
         .lean();
       return { ...item, images };
@@ -704,7 +650,6 @@ const getAuctionPreview = asyncHandler(async (req, res) => {
     { preview },
     "Auction preview retrieved successfully"
   );
-  await redisClient.setEx(cacheKey, 1800, JSON.stringify(response)); // Cache for 30 minutes
   return res.status(200).json(response);
 });
 
@@ -713,12 +658,6 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
 
   if (!mongoose.Types.ObjectId.isValid(auction_id)) {
     throw new apiError(400, "Invalid auction ID");
-  }
-
-  const cacheKey = `leaderboard:${auction_id}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
   }
 
   const auction = await Auction.findOne({
@@ -734,7 +673,7 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
     _id: { $in: auction.settings.item_ids },
   }).lean();
 
-  console.log("Items found:", items); // DEBUG: Check number of items
+  console.log("Items found:", items);
 
   // For single-item auctions
   if (items.length === 1) {
@@ -751,9 +690,9 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
       {
         $group: {
           _id: "$bidder_id",
-          bid_amount: { $max: "$amount" }, // or "$encrypted_amount" if applicable
-          bid_time: { $max: "$createdAt" }, // Take the latest bid time for the max bid
-          is_winner: { $max: "$is_winner" }, // Preserve winner status
+          bid_amount: { $max: "$amount" },
+          bid_time: { $max: "$createdAt" },
+          is_winner: { $max: "$is_winner" },
         },
       },
       {
@@ -768,7 +707,7 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
         $unwind: "$bidder",
       },
       {
-        $sort: { bid_amount: -1, bid_time: 1 }, // Highest bid first, earliest time for ties
+        $sort: { bid_amount: -1, bid_time: 1 },
       },
       {
         $project: {
@@ -781,7 +720,7 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
       },
     ]);
 
-    console.log("Aggregated bids:", bids); // DEBUG: Check aggregated bids
+    console.log("Aggregated bids:", bids);
 
     if (bids.length === 0) {
       const response = new APIResponse(
@@ -804,7 +743,6 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
         },
         "No bids found for this item"
       );
-      await redisClient.setEx(cacheKey, 1800, JSON.stringify(response));
       return res.status(200).json(response);
     }
 
@@ -828,7 +766,7 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
         starting_bid: items[0].starting_bid,
         current_bid: items[0].current_bid,
         status: items[0].status,
-        total_bids: bids.length, // Total bids is now unique per bidder
+        total_bids: bids.length,
         unique_bidders: bids.length,
         leaderboard,
         winner:
@@ -848,11 +786,10 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
       "Item leaderboard retrieved successfully"
     );
 
-    await redisClient.setEx(cacheKey, 1800, JSON.stringify(response));
     return res.status(200).json(response);
   }
 
-  // For multi-item auctions (unchanged)
+  // For multi-item auctions
   const leaderboard = await Promise.all(
     items.map(async (item) => {
       const highestBid = await Bid.findOne({
@@ -895,7 +832,6 @@ const getAuctionLeaderboard = asyncHandler(async (req, res) => {
     "Leaderboard retrieved successfully"
   );
 
-  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
   return res.status(200).json(response);
 });
 
@@ -922,7 +858,7 @@ const placeSealedBid = asyncHandler(async (req, res) => {
     const auction = await Auction.findOne({
       _id: auction_id,
       auction_status: "active",
-      "settings.item_ids": { $in: [item_id] }, // ✅ Fixed: handles array correctly
+      "settings.item_ids": { $in: [item_id] },
     }).session(session);
 
     if (!auction) {
@@ -1084,11 +1020,6 @@ const revealSealedBids = asyncHandler(async (req, res) => {
     auction.auction_status = "completed";
     await auction.save({ session: dbSession });
 
-    await redisClient.del(`auction:${auction_id}`);
-    await redisClient.del(`auction:summary:${auction_id}`);
-    await redisClient.del(`auction:preview:${auction_id}`);
-    await redisClient.del(`leaderboard:${auction_id}`);
-
     await dbSession.commitTransaction();
     return res
       .status(200)
@@ -1203,7 +1134,7 @@ const placeTimedBid = asyncHandler(async (req, res) => {
         "settings.unique_bidders": hasBidBefore ? 0 : 1,
       },
       $push: {
-        bid_history: bid[0]._id, // Store Bid ObjectId
+        bid_history: bid[0]._id,
       },
     };
 
@@ -1227,9 +1158,6 @@ const placeTimedBid = asyncHandler(async (req, res) => {
     // Emit socket event
     auctionNamespace.to(auction_id.toString()).emit("timeBidPlaced", bidData);
 
-    // Invalidate cache
-    await redisClient.del(`auction:${auction_id}`);
-
     return res
       .status(201)
       .json(
@@ -1243,6 +1171,7 @@ const placeTimedBid = asyncHandler(async (req, res) => {
     dbSession.endSession();
   }
 });
+
 const getMyAuctions = asyncHandler(async (req, res) => {
   console.log("getMyAuctions: Fetching auctions for user:", req.user._id);
 
@@ -1268,12 +1197,6 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
     throw new apiError(400, "Invalid auction ID");
   }
 
-  const cacheKey = `sealed_leaderboard:${auction_id}`;
-  const cached = await redisClient.get(cacheKey);
-  if (cached) {
-    return res.status(200).json(JSON.parse(cached));
-  }
-
   const auction = await Auction.findOne({
     _id: auction_id,
     auction_status: "completed",
@@ -1283,7 +1206,7 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
     throw new apiError(404, "Auction not found or not completed");
   }
 
-  const itemId = auction.settings.item_ids[0]; // sealed bid is for 1 item
+  const itemId = auction.settings.item_ids[0];
   const bids = await Bid.find({ auction_id, item_id: itemId }).lean();
 
   const decryptedBids = bids.map((bid) => {
@@ -1297,14 +1220,14 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
       bidder_id: bid.bidder_id,
       amount,
       is_winner: bid.is_winner || false,
-      bid_id: bid._id, // Keep bid ID for reference
+      bid_id: bid._id,
     };
   });
 
   const sortedBids = decryptedBids
     .filter((b) => b.amount !== null)
-    .sort((a, b) => b.amount - a.amount) // highest first for display
-    .reverse(); // Actually, let's keep highest first
+    .sort((a, b) => b.amount - a.amount)
+    .reverse();
 
   // SAFETY CHECK: Ensure only one winner
   const winnersFromDB = sortedBids.filter((bid) => bid.is_winner);
@@ -1319,7 +1242,6 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
     sortedBids.forEach((bid) => (bid.is_winner = false));
 
     // Find the actual winner based on your business logic
-    // Option 1: If you have a target value in auction settings
     if (auction.settings?.target_value) {
       const targetValue = auction.settings.target_value;
       let closestBid = null;
@@ -1339,9 +1261,7 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
           `Selected winner for auction ${auction_id}: ${closestBid.bidder_id} with $${closestBid.amount} (target: $${targetValue})`
         );
       }
-    }
-    // Option 2: If no target value, use the first winner from DB (or implement your own logic)
-    else {
+    } else {
       const actualWinner = winnersFromDB[0];
       const winnerIndex = sortedBids.findIndex(
         (bid) => bid.bid_id.toString() === actualWinner.bid_id.toString()
@@ -1356,13 +1276,11 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
 
     // Update the database to fix the inconsistency
     try {
-      // First, reset all bids to not winner
       await Bid.updateMany(
         { auction_id, item_id: itemId },
         { is_winner: false }
       );
 
-      // Then set the correct winner
       const correctWinner = sortedBids.find((bid) => bid.is_winner);
       if (correctWinner) {
         await Bid.updateOne({ _id: correctWinner.bid_id }, { is_winner: true });
@@ -1405,7 +1323,6 @@ const getSealedBidLeaderboard = asyncHandler(async (req, res) => {
     "Sealed bid leaderboard retrieved"
   );
 
-  await redisClient.setEx(cacheKey, 3600, JSON.stringify(response));
   return res.status(200).json(response);
 });
 
@@ -1580,6 +1497,7 @@ const getMyBids = asyncHandler(async (req, res) => {
     )
   );
 });
+
 const endAuctionEarly = asyncHandler(async (req, res) => {
   const { auctionId } = req.params;
 
@@ -1714,7 +1632,7 @@ const endAuctionEarly = asyncHandler(async (req, res) => {
       }
 
       // Emit WebSocket events
-      emitAuctionStatusUpdate(updatedAuction); // Add this
+      emitAuctionStatusUpdate(updatedAuction);
       try {
         auctionNamespace.to(auctionId.toString()).emit("auctionEndedEarly", {
           auction_id: auctionId,
@@ -1728,23 +1646,6 @@ const endAuctionEarly = asyncHandler(async (req, res) => {
         logger.error(
           `Failed to emit auctionEndedEarly for auction ${auctionId}:`,
           socketError
-        );
-      }
-
-      // Invalidate caches
-      try {
-        await redisClient.del(`auction:${auctionId}`);
-        await redisClient.del(`auction:summary:${auctionId}`);
-        await redisClient.del(`auction:preview:${auctionId}`);
-        await redisClient.del(`leaderboard:${auctionId}`);
-        const allAuctionsKeys = await redisClient.keys(`auctions:all:*`);
-        if (allAuctionsKeys.length > 0) {
-          await redisClient.del(allAuctionsKeys);
-        }
-      } catch (redisError) {
-        logger.error(
-          `Failed to clear caches for auction ${auctionId}:`,
-          redisError
         );
       }
 

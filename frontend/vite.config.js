@@ -9,5 +9,7 @@ export default defineConfig({
       "localhost",
       "4e8b4fafd5b6.ngrok-free.app", // Your ngrok frontend URL
     ],
+    // Add this to handle client-side routing
+    historyApiFallback: true,
   },
 });
