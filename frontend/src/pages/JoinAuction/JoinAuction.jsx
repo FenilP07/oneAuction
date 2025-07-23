@@ -20,6 +20,7 @@ import {
   Card,
   ListGroup,
   Table,
+  Modal,
 } from "react-bootstrap";
 import Navbar from "../../components/Navbar.jsx";
 import Footer from "../../components/Footer.jsx";
@@ -407,6 +408,7 @@ const JoinAuction = () => {
   // Local state
   const [pulseKey, setPulseKey] = useState(0);
   const [isAuctionEnded, setIsAuctionEnded] = useState(false);
+  const [showWinnerModal, setShowWinnerModal] = useState(false);
 
   // Custom hooks
   const {
@@ -448,6 +450,19 @@ const JoinAuction = () => {
   const isAuctioneer = useMemo(() => {
     return auction?.auctioneer_id?._id === userId;
   }, [auction?.auctioneer_id?._id, userId]);
+
+  // Check if current user is the winner
+  const isWinner = useMemo(() => {
+    if (!isAuctionEnded || !auction?.items?.[0]) return false;
+    return auction.items[0].winner_id === userId;
+  }, [isAuctionEnded, auction, userId]);
+
+  // Show winner modal when auction ends and user is the winner
+  useEffect(() => {
+    if (isAuctionEnded && isWinner && !isAuctioneer) {
+      setShowWinnerModal(true);
+    }
+  }, [isAuctionEnded, isWinner, isAuctioneer]);
 
   // Socket event handlers
   const handleBidUpdate = useCallback(
@@ -671,17 +686,56 @@ const JoinAuction = () => {
           </div>
         </div>
       </div>
+
+      {/* Winner Modal */}
+      <Modal
+        show={showWinnerModal}
+        onHide={() => setShowWinnerModal(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Congratulations, You Won!</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            You have won the auction for "{auction?.auction_title || "this item"}"!
+            To complete your purchase and receive your item, please contact our support team at{" "}
+            <a href="mailto:support@yourauctionplatform.com">
+              support@yourauctionplatform.com
+            </a>{" "}
+            to arrange payment and delivery.
+          </p>
+          <p>
+            Note: Payment processing will be available soon. Stay tuned for updates!
+          </p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={() => setShowWinnerModal(false)}
+          >
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => window.location.href = "mailto:support@yourauctionplatform.com"}
+          >
+            Contact Support
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
       {/* Back Button */}
-     <div className="back-button-container d-flex justify-content-start mt-4">
-  <Button
-    variant="outline-secondary"
-    onClick={() => navigate("/browseAuctions")}
-    className="mb-4"
-  >
-    <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
-    Back to Auctions
-  </Button>
-</div>
+      <div className="back-button-container d-flex justify-content-start mt-4">
+        <Button
+          variant="outline-secondary"
+          onClick={() => navigate("/browse-auctions")}
+          className="mb-4"
+        >
+          <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
+          Back to Auctions
+        </Button>
+      </div>
       <NotificationToast
         show={showToast}
         message={toastMessage}

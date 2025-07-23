@@ -234,6 +234,18 @@ const BrowseAuctions = () => {
     if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
     return `${minutes}m ${seconds}s`;
   };
+  const formatStartTime = (startDate) => {
+    if (!startDate) return "N/A";
+    const date = new Date(startDate);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   const getAuctionTypeName = (auctionType) => {
     if (!auctionType) return "Unknown";
@@ -292,11 +304,15 @@ const BrowseAuctions = () => {
       setPreviewError(null);
       setPreviewData(null);
       const data = await getAuctionPreview(auctionId);
+      console.log("Auction Preview API Response:", data); // Debug log
+      if (!data.preview?.end_time) {
+        console.warn("Missing end_time in preview data");
+      }
       const mappedData = {
         ...data.preview,
-        status: data.preview.auction_status,
-        end_time: data.preview.auction_end_time,
-        start_time: data.preview.auction_start_time,
+        status: data.preview.status || "unknown", // Use status from preview
+        end_time: data.preview.end_time || null, // Use end_time from preview
+        start_time: data.preview.start_time || null, // Use start_time from preview
       };
       setPreviewData(mappedData);
       setShowPreview(true);
@@ -690,6 +706,8 @@ const BrowseAuctions = () => {
                   const isTimedOrSealed =
                     auctionType === "single_timed_item" ||
                     auctionType === "sealed_bid";
+                  const isEnded = status === "ended";
+                  const isSealedBid = auctionType === "sealed_bid";
 
                   return (
                     <div className="col" key={auction._id}>
@@ -771,6 +789,16 @@ const BrowseAuctions = () => {
                                   : "d-flex justify-content-between mb-2"
                               }
                             >
+                              {!isEnded && (
+                                <div>
+                                  <small className="text-muted">
+                                    Start Time:
+                                  </small>
+                                  <div className="fw-bold text-primary">
+                                    {formatStartTime(auction.start_time)}
+                                  </div>
+                                </div>
+                              )}
                               <div>
                                 <small className="text-muted">
                                   Time Remaining:
@@ -799,22 +827,30 @@ const BrowseAuctions = () => {
                           </div>
                           <div className="d-flex justify-content-between align-items-center">
                             <div>
-                              <small className="text-muted">
-                                {auction.auctionType_id?.type_name?.toLowerCase() ===
-                                  "single_timed_item" &&
-                                auction.items?.[0]?.current_bid
-                                  ? "Current Bid"
-                                  : "Starting Bid"}
-                              </small>
-                              <div className="fw-bold">
-                                $
-                                {(auction.auctionType_id?.type_name?.toLowerCase() ===
-                                  "single_timed_item" &&
-                                auction.items?.[0]?.current_bid
-                                  ? auction.items[0].current_bid
-                                  : auction.settings?.reserve_price || 0
-                                ).toLocaleString()}
-                              </div>
+                              {isSealedBid ? (
+                                <div className="text-muted">
+                                  Sealed Bid - Place your bid to participate
+                                </div>
+                              ) : (
+                                <>
+                                  <small className="text-muted">
+                                    {auction.auctionType_id?.type_name?.toLowerCase() ===
+                                      "single_timed_item" &&
+                                    auction.items?.[0]?.current_bid
+                                      ? "Current Bid"
+                                      : "Starting Bid"}
+                                  </small>
+                                  <div className="fw-bold">
+                                    $
+                                    {(auction.auctionType_id?.type_name?.toLowerCase() ===
+                                      "single_timed_item" &&
+                                    auction.items?.[0]?.current_bid
+                                      ? auction.items[0].current_bid
+                                      : auction.settings?.reserve_price || 0
+                                    ).toLocaleString()}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             <div className="d-flex gap-2">
                               {isTimedOrSealed &&

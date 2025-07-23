@@ -36,6 +36,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
     sequence: [],
     banner_image: null,
     hint: "",
+    min_bid_increment: "1",
   });
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,11 +45,15 @@ const AuctionModal = ({ onAuctionCreate }) => {
   const itemsPerPage = 10;
 
   const now = new Date();
-  const currentDate = now.toLocaleDateString("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).split("/").reverse().join("-"); // Formats as YYYY-MM-DD for Canada
+  const currentDate = now
+    .toLocaleDateString("en-CA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+    .split("/")
+    .reverse()
+    .join("-"); // Formats as YYYY-MM-DD for Canada
   const currentTime = now
     .toLocaleTimeString("en-CA", {
       hour12: false,
@@ -174,7 +179,6 @@ const AuctionModal = ({ onAuctionCreate }) => {
     const startDateTime = new Date(
       `${auctionData.startDate}T${auctionData.startTime}`
     );
-    // startDateTime is in local time (e.g., EDT for Canada); ensure backend expects UTC
     if (startDateTime < now) return "Start time must be in the future";
     if (!auctionData.timePeriod || auctionData.timePeriod <= 0)
       return "Duration must be a positive number";
@@ -194,7 +198,6 @@ const AuctionModal = ({ onAuctionCreate }) => {
     ) {
       return "Timed and sealed bid auctions can only have one item";
     }
-
     if (selectedAuctionType.type_name === "sealed_bid") {
       if (!auctionData.hint || auctionData.hint.trim().length === 0) {
         return "Hint is required for sealed bid auctions";
@@ -203,7 +206,6 @@ const AuctionModal = ({ onAuctionCreate }) => {
         return "Hint must be 200 characters or less";
       }
     }
-
     if (selectedAuctionType.type_name === "sealed_bid") {
       const deadline = auctionData.sealed_bid_deadline
         ? new Date(auctionData.sealed_bid_deadline)
@@ -213,12 +215,16 @@ const AuctionModal = ({ onAuctionCreate }) => {
         (isNaN(deadline.getTime()) ||
           deadline < startDateTime ||
           deadline >
-            new Date(
-              startDateTime.getTime() + auctionData.timePeriod * 60000
-            ))
+            new Date(startDateTime.getTime() + auctionData.timePeriod * 60000))
       ) {
         return "Sealed bid deadline must be between start time and end time";
       }
+    }
+    if (
+      !auctionData.min_bid_increment ||
+      Number(auctionData.min_bid_increment) <= 0
+    ) {
+      return "Minimum bid increment must be a positive number";
     }
     return null;
   }, [auctionData, selectedAuctionType]);
@@ -243,6 +249,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
       banner_image,
       hint,
       sealed_bid_deadline,
+      min_bid_increment,
     } = auctionData;
 
     const auction_start_time = new Date(
@@ -270,9 +277,13 @@ const AuctionModal = ({ onAuctionCreate }) => {
       banner_image,
       settings:
         selectedAuctionType.type_name === "live"
-          ? { item_ids: items }
+          ? {
+              item_ids: items,
+              min_bid_increment: Number(min_bid_increment), // Add min_bid_increment
+            }
           : {
               item_id: items[0],
+              min_bid_increment: Number(min_bid_increment), // Add min_bid_increment
               ...(selectedAuctionType.type_name === "sealed_bid" && {
                 sealed_bid_deadline: deadline,
               }),
@@ -309,6 +320,7 @@ const AuctionModal = ({ onAuctionCreate }) => {
       sequence: [],
       banner_image: null,
       hint: "",
+      min_bid_increment: "1", // Reset to default
       ...(selectedAuctionType?.type_name === "live" && {
         is_invite_only: false,
       }),
@@ -734,13 +746,17 @@ const AuctionModal = ({ onAuctionCreate }) => {
                                   minute: "2-digit",
                                   hour12: false,
                                 })
-                                .replace(/(\d+)\/(\d+)\/(\d+), (\d+:\d+)/, "$3-$1-$2T$4")}
+                                .replace(
+                                  /(\d+)\/(\d+)\/(\d+), (\d+:\d+)/,
+                                  "$3-$1-$2T$4"
+                                )}
                               onChange={handleInputChange}
                               size="sm"
                               required
                             />
                             <Form.Text muted>
-                              Deadline is shown in your local time zone (EDT). Stored in UTC.
+                              Deadline is shown in your local time zone (EDT).
+                              Stored in UTC.
                             </Form.Text>
                           </Form.Group>
                         </>
@@ -810,7 +826,8 @@ const AuctionModal = ({ onAuctionCreate }) => {
                           required
                         />
                         <Form.Text muted>
-                          Time is shown in your local time zone (EDT). Auction times are stored in UTC.
+                          Time is shown in your local time zone (EDT). Auction
+                          times are stored in UTC.
                         </Form.Text>
                       </Form.Group>
 
@@ -831,6 +848,29 @@ const AuctionModal = ({ onAuctionCreate }) => {
                         />
                         <Form.Text id="timePeriod_help" muted>
                           Enter duration in minutes
+                        </Form.Text>
+                      </Form.Group>
+                      <Form.Group
+                        className="mb-2"
+                        controlId="min_bid_increment"
+                      >
+                        <Form.Label className="mb-0 fs-6">
+                          Minimum Bid Increment*
+                        </Form.Label>
+                        <Form.Control
+                          type="number"
+                          name="min_bid_increment"
+                          value={auctionData.min_bid_increment}
+                          onChange={handleInputChange}
+                          size="sm"
+                          min="1"
+                          step="0.01"
+                          required
+                          placeholder="e.g., 1.00"
+                          aria-describedby="min_bid_increment_help"
+                        />
+                        <Form.Text id="min_bid_increment_help" muted>
+                          Enter minimum bid increment (e.g., 1.00 for $1.00)
                         </Form.Text>
                       </Form.Group>
 

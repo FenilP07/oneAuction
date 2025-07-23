@@ -723,7 +723,7 @@ const Dashboard = () => {
                 <p>Recommended items will appear here</p>
                 <Button
                   variant="outline-primary"
-                  onClick={() => navigate("/auctions")}
+                  onClick={() => navigate("/browseAuctions")}
                 >
                   Browse Auctions
                 </Button>
@@ -813,7 +813,7 @@ const Dashboard = () => {
             variant={activeTab === "auctioneer" ? "primary" : "outline-primary"}
             onClick={() =>
               navigate(
-                activeTab === "auctioneer" ? "/itemListingPage" : "/auctions"
+                activeTab === "auctioneer" ? "/itemListingPage" : "/browseAuctions"
               )
             }
           >

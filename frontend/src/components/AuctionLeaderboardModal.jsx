@@ -75,13 +75,13 @@ const AuctionLeaderboardModal = ({
               {leaderboardData?.auction_title || auctionTitle || "Auction Leaderboard"}
             </Modal.Title>
           </div>
-          <Button
+          {/* <Button
             variant="link"
             onClick={() => setShowLeaderboard(false)}
             className="text-gray-500 hover:text-gray-700"
           >
             <FontAwesomeIcon icon={faTimes} />
-          </Button>
+          </Button> */}
         </div>
       </Modal.Header>
 
