@@ -31,7 +31,8 @@ const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:5173",
   "http://localhost:3000",
   "https://4e8b4fafd5b6.ngrok-free.app",
-  "https://oneauctionbackend.onrender.com", 
+  "https://oneauctionbackend.onrender.com",
+   "https://oneauctionfrontend.vercel.app", 
   "*"
 ];
 
