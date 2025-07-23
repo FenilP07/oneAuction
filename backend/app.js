@@ -32,8 +32,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "https://4e8b4fafd5b6.ngrok-free.app",
   "https://oneauctionbackend.onrender.com",
-   "https://oneauctionfrontend.vercel.app", 
-  "*"
+  "https://oneauctionfronend.vercel.app",
 ];
 
 const io = new Server(server, {
