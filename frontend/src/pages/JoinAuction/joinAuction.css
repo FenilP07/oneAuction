@@ -3,7 +3,18 @@
   background-color: #e0ffe5 !important;
   animation: pulse 1s ease-in-out;
 }
+.back-button-container {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+}
 
+.back-button-container .btn {
+  transition: all 0.3s ease;
+}
+
+.back-button-container .btn:hover {
+  transform: translateX(-5px);
+}
 @keyframes pulse {
   0% {
     background-color: #d1f7dc;

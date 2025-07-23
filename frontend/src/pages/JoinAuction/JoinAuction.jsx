@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faGavel, faClock } from "@fortawesome/free-solid-svg-icons";
+import {
+  faGavel,
+  faClock,
+  faArrowLeft,
+} from "@fortawesome/free-solid-svg-icons";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import EndAuctionEarlyButton from "../../components/EndAuctionEarly.jsx";
@@ -667,7 +671,17 @@ const JoinAuction = () => {
           </div>
         </div>
       </div>
-
+      {/* Back Button */}
+     <div className="back-button-container d-flex justify-content-start mt-4">
+  <Button
+    variant="outline-secondary"
+    onClick={() => navigate("/browse-auctions")}
+    className="mb-4"
+  >
+    <FontAwesomeIcon icon={faArrowLeft} className="me-2" />
+    Back to Auctions
+  </Button>
+</div>
       <NotificationToast
         show={showToast}
         message={toastMessage}

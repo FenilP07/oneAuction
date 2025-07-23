@@ -289,7 +289,7 @@ const processAuctionWinner = async (auction, itemId, auctionTypes, session) => {
 const auctionCronJob = (io) => {
   logger.info("Initializing auction cron job...");
 
-  cron.schedule("*/10 * * * * *", async () => {
+  cron.schedule("*/1 * * * * *", async () => {
     const startTime = Date.now();
     const now = new Date();
 

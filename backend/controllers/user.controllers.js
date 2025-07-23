@@ -331,7 +331,8 @@ const requestPasswordReset = asyncHandler(async (req, res) => {
   }
 
   const resetToken = generateAccessToken(user._id, user.role);
-  const resetUrl = `http://localhost:5173/reset-password/${resetToken}`;
+  const resetUrl = `http://oneauctionfronend.vercel.app
+/reset-password/${resetToken}`;
 
   // Store token & expiry in DB
   user.passwordResetToken = resetToken;
