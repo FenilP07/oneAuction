@@ -1,8 +1,9 @@
 // utils/apiClient.js
 import axios from "axios";
 import useAuthStore from "../store/authStore.js";
-const CLIENT_API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
+// const CLIENT_API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const CLIENT_API = import.meta.env.VITE_API_URL || 'https://oneauctionbackend.onrender.com/api';
 
 const apiClient = axios.create({
   baseURL: CLIENT_API,
@@ -33,15 +34,33 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Add response logging for debugging
+    console.log("Response success:", {
+      url: response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
   async (error) => {
+    // Log the full error details
+    console.log("Response error details:", {
+      url: error.config?.url,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    });
+
     const originalRequest = error.config;
     const isAuthError =
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url.includes("/user/login") &&
       !originalRequest.url.includes("/user/register") &&
-      !originalRequest.url.includes("/user/logout");
+      !originalRequest.url.includes("/user/logout") &&
+      !originalRequest.url.includes("/user/request-password-reset"); // Add this line
 
     if (isAuthError) {
       originalRequest._retryCount = originalRequest._retryCount || 0;
@@ -89,8 +108,19 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const message =
-      error.response?.data?.message || "An unexpected error occurred";
+    // Better error message extraction
+    let message = "An unexpected error occurred";
+    
+    if (error.response?.data) {
+      // Try different possible error message formats
+      message = error.response.data.message || 
+                error.response.data.error || 
+                error.response.data.msg ||
+                `HTTP ${error.response.status}: ${error.response.statusText}`;
+    } else if (error.message) {
+      message = error.message;
+    }
+
     console.error("API error:", message, error.response?.status);
     return Promise.reject(new Error(message));
   }

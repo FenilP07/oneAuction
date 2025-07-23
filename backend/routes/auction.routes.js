@@ -11,7 +11,8 @@ import {
   placeTimedBid,
   getSealedBidLeaderboard,
   revealSealedBids,
-  getMyBids
+  getMyBids,
+  endAuctionEarly
 } from "../controllers/auction.controller.js";
 import { authenticatedMiddleware } from "../middlewares/auth.middlewares.js";
 import upload from "../utils/cloudinary.js";
@@ -30,6 +31,7 @@ router.get("/leaderboard/:auction_id", getAuctionLeaderboard);
 router.get("/sealed-leaderboard/:auction_id", getSealedBidLeaderboard);
 router.post("/reveal/:auction_id", authenticatedMiddleware, revealSealedBids);
 router.get("/summary/:auction_id", getAuctionSummary);
+router.patch("/end/:auctionId", authenticatedMiddleware, endAuctionEarly);
 router.get("/:auction_id", getAuctionById);
 router.get("/", getAllAuctions);
 router.post("/timed", authenticatedMiddleware, placeTimedBid);

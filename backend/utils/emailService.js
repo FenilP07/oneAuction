@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 import logger from "./logger.js";
 
 const createTransporter = () => {
+  console.log('EMAIL_SERVICE:', process.env.EMAIL_SERVICE);
+  console.log('EMAIL_USER:', process.env.EMAIL_USER);
+  console.log('EMAIL_PASSWORD:', process.env.EMAIL_PASSWORD);
   if (process.env.EMAIL_SERVICE === "gmail") {
     return nodemailer.createTransport({
       service: "gmail",

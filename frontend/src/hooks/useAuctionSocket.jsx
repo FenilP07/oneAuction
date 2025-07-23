@@ -6,12 +6,14 @@ export const useAuctionSocket = (
   auctionId,
   accessToken,
   onBidUpdate,
+  onAuctionEndedEarly,
   onNotification
 ) => {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    if (auctionType !== "single_timed_item" || !auctionId || !accessToken) return;
+    if (auctionType !== "single_timed_item" || !auctionId || !accessToken)
+      return;
 
     const socket = io("http://localhost:3000/auctions", {
       auth: { token: accessToken },
@@ -34,11 +36,13 @@ export const useAuctionSocket = (
 
     socket.on("connect_error", (error) => {
       console.error("⚠️ Socket connection error:", error);
-      if (onNotification) onNotification("Connection error. Reconnecting...", "warning");
+      if (onNotification)
+        onNotification("Connection error. Reconnecting...", "warning");
     });
 
     socket.on("reconnect_failed", () => {
-      if (onNotification) onNotification("Failed to reconnect to auction", "danger");
+      if (onNotification)
+        onNotification("Failed to reconnect to auction", "danger");
     });
 
     socket.on("timeBidPlaced", (bid) => {
@@ -46,7 +50,23 @@ export const useAuctionSocket = (
       if (onBidUpdate) onBidUpdate(bid);
       if (onNotification) {
         onNotification(
-          `New bid: $${bid.amount.toLocaleString()} by ${bid.bidder_username || "Anonymous"}`,
+          `New bid: $${bid.amount.toLocaleString()} by ${
+            bid.bidder_username || "Anonymous"
+          }`,
+          "info"
+        );
+      }
+    });
+    socket.on("auctionEndedEarly", (data) => {
+      console.log("ended early", data);
+      if (onAuctionEndedEarly) {
+        onAuctionEndedEarly(data);
+      }
+      if (onNotification) {
+        onNotification(
+          `Auction ended early at ${new Date(
+            data.ended_at
+          ).toLocaleDateString()}`,
           "info"
         );
       }

@@ -35,13 +35,18 @@ import {
 import useAuthStore from "../../store/authStore";
 import { getMyAuctions, getMyBids } from "../../services/auctionService";
 import { getMyItems } from "../../services/itemService";
+import "./dashboard.css"
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, getUserRole } = useAuthStore();
   const [activeTab, setActiveTab] = useState("auctioneer");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({ items: null, auctions: null, bids: null });
+  const [errors, setErrors] = useState({
+    items: null,
+    auctions: null,
+    bids: null,
+  });
   const [stats, setStats] = useState({
     itemsListed: 0,
     auctionsCreated: 0,
@@ -69,11 +74,18 @@ const Dashboard = () => {
     }
   };
 
- useEffect(() => {
+  useEffect(() => {
     const checkAndFetch = async () => {
       const isLoggedIn = isAuthenticated?.();
       const role = getUserRole?.();
-      console.log("Effect triggered | Tab:", activeTab, "| Role:", role, "| Auth:", isLoggedIn);
+      console.log(
+        "Effect triggered | Tab:",
+        activeTab,
+        "| Role:",
+        role,
+        "| Auth:",
+        isLoggedIn
+      );
 
       if (isLoggedIn && user) {
         await fetchDashboardData(role);
@@ -84,88 +96,156 @@ const Dashboard = () => {
     checkAndFetch();
   }, [user, activeTab]);
 
- const fetchDashboardData = async (role) => {
-    setLoading(true);
-    setErrors({ items: null, auctions: null, bids: null });
-    setStats({
-      itemsListed: 0, auctionsCreated: 0, activeAuctions: 0, pendingApprovals: 0,
-      bidsPlaced: 0, itemsWon: 0, watchlist: 0, totalSpent: 0,
-    });
+const fetchDashboardData = async (role) => {
+  setLoading(true);
+  setErrors({ items: null, auctions: null, bids: null });
+  setStats({
+    itemsListed: 0,
+    auctionsCreated: 0,
+    activeAuctions: 0,
+    pendingApprovals: 0,
+    bidsPlaced: 0,
+    itemsWon: 0,
+    watchlist: 0,
+    totalSpent: 0,
+  });
 
-    try {
-      if (activeTab === "auctioneer" && ["admin", "user"].includes(role)) {
-        console.log("Fetching data for auctioneer...");
-        const [itemsRes, auctionsRes] = await Promise.all([
-          retryRequest(() => getMyItems()).catch((err) => {
-            console.error("getMyItems failed:", err.message);
-            setErrors((prev) => ({ ...prev, items: err.message || "Failed to fetch items" }));
-            return { items: [] };
-          }),
-          retryRequest(() => getMyAuctions()).catch((err) => {
-            console.error("getMyAuctions failed:", err.message);
-            setErrors((prev) => ({ ...prev, auctions: err.message || "Failed to fetch auctions" }));
-            return [];
-          }),
-        ]);
+  try {
+    if (activeTab === "auctioneer" && ["admin", "user"].includes(role)) {
+      console.log("Fetching data for auctioneer...");
+      const [itemsRes, auctionsRes] = await Promise.all([
+        retryRequest(() => getMyItems()).catch((err) => {
+          console.error("getMyItems failed:", err.message);
+          setErrors((prev) => ({
+            ...prev,
+            items: err.message || "Failed to fetch items",
+          }));
+          return { items: [] };
+        }),
+        retryRequest(() => getMyAuctions()).catch((err) => {
+          console.error("getMyAuctions failed:", err.message);
+          setErrors((prev) => ({
+            ...prev,
+            auctions: err.message || "Failed to fetch auctions",
+          }));
+          return [];
+        }),
+      ]);
 
-        const items = itemsRes.items || [];
-        const auctions = auctionsRes || [];
+      const items = itemsRes.items || [];
+      const auctions = auctionsRes || [];
 
-        console.log("Fetched items:", items.length);
-        console.log("Fetched auctions:", auctions.length);
+      // Sort items by createdAt (newest first)
+      const sortedItems = items.sort((a, b) => 
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      );
 
-        setMyItems(items);
-        setMyAuctions(auctions);
+      // Sort auctions by auction_start_time or createdAt (newest first)
+      const sortedAuctions = auctions.sort((a, b) => 
+        new Date(b.auction_start_time || b.createdAt || 0) - 
+        new Date(a.auction_start_time || a.createdAt || 0)
+      );
 
-        const pendingItems = items.filter((item) => item.status === "pending_approval").length;
-        const activeAuctions = auctions.filter((auction) => auction.auction_status === "active").length;
+      console.log("Fetched items:", sortedItems.length);
+      console.log("Fetched auctions:", sortedAuctions.length);
 
-        setStats((prev) => ({
+      setMyItems(sortedItems);
+      setMyAuctions(sortedAuctions);
+
+      const pendingItems = sortedItems.filter(
+        (item) => item.status === "pending_approval"
+      ).length;
+      const activeAuctions = sortedAuctions.filter(
+        (auction) => auction.auction_status === "active"
+      ).length;
+
+      setStats((prev) => ({
+        ...prev,
+        itemsListed: sortedItems.length,
+        auctionsCreated: sortedAuctions.length,
+        activeAuctions,
+        pendingApprovals: pendingItems,
+      }));
+
+      generatePerformanceData(sortedItems, sortedAuctions);
+    } else if (activeTab === "bidder") {
+      console.log("Fetching data for bidder...");
+
+      const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
+        console.error("getMyBids failed:", err.message);
+        setErrors((prev) => ({
           ...prev,
-          itemsListed: items.length,
-          auctionsCreated: auctions.length,
-          activeAuctions,
-          pendingApprovals: pendingItems,
+          bids: err.message || "Failed to fetch bids",
         }));
+        return {
+          data: {
+            stats: { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 },
+            active: [],
+            won: [],
+            lost: [],
+          },
+        };
+      });
 
-        generatePerformanceData(items, auctions);
-      } else if (activeTab === "bidder") {
-        console.log("Fetching data for bidder...");
+      // Ensure bidsRes.data is defined, provide fallback
+      const { stats = { bidsPlaced: 0, itemsWon: 0, totalSpent: 0 }, active = [], won = [], lost = [] } = bidsRes || {};
 
-        const bidsRes = await retryRequest(() => getMyBids()).catch((err) => {
-          console.error("getMyBids failed:", err.message);
-          setErrors((prev) => ({ ...prev, bids: err.message || "Failed to fetch bids" }));
-          return { bids: [] };
-        });
+      // Combine active, won, and lost bids for the bidding activity table
+      const allBids = [
+        ...(Array.isArray(active) ? active.map((bid) => ({
+          _id: bid.bid_id,
+          item: { _id: bid.item_id, name: bid.item_name },
+          amount: bid.amount,
+          status: bid.status,
+          timeLeft: bid.timeLeft,
+          createdAt: bid.createdAt || bid.bid_time || new Date(), // Use bid_time or createdAt if available
+        })) : []),
+        ...(Array.isArray(won) ? won.map((bid) => ({
+          _id: bid.bid_id,
+          item: { _id: bid.item_id, name: bid.item_name },
+          amount: bid.final_price || bid.amount,
+          status: bid.status,
+          timeLeft: bid.timeLeft || "Ended",
+          createdAt: bid.createdAt || bid.bid_time || new Date(),
+        })) : []),
+        ...(Array.isArray(lost) ? lost.map((bid) => ({
+          _id: bid.bid_id,
+          item: { _id: bid.item_id, name: bid.item_name },
+          amount: bid.final_price || bid.amount,
+          status: bid.status,
+          timeLeft: bid.timeLeft || "Ended",
+          createdAt: bid.createdAt || bid.bid_time || new Date(),
+        })) : []),
+      ];
 
-        const bids = bidsRes.bids || [];
+      // Sort bids by createdAt (newest first)
+      const sortedBids = allBids.sort((a, b) => 
+        new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+      );
 
-        console.log("Fetched bids:", bids.length);
+      console.log("Fetched bids:", sortedBids.length);
 
-        const totalSpent = bids
-          .filter((bid) => bid.status === "won")
-          .reduce((sum, bid) => sum + (bid.amount || 0), 0);
-
-        setBiddingActivity(bids);
-        setStats((prev) => ({
-          ...prev,
-          bidsPlaced: bids.length,
-          itemsWon: bids.filter((bid) => bid.status === "won").length,
-          totalSpent,
-        }));
-      }
-    } catch (error) {
-      console.error("Fetch dashboard data error:", error);
-    } finally {
-      setLoading(false);
+      setBiddingActivity(sortedBids);
+      setStats((prev) => ({
+        ...prev,
+        bidsPlaced: stats.bidsPlaced || 0,
+        itemsWon: stats.itemsWon || 0,
+        totalSpent: stats.totalSpent || 0,
+      }));
     }
-  };
-
+  } catch (error) {
+    console.error("Fetch dashboard data error:", error);
+  } finally {
+    setLoading(false);
+  }
+};
   const generatePerformanceData = (items, auctions) => {
     const monthlyData = items.reduce((acc, item) => {
       if (item.status === "available" || item.status === "sold") {
         const month = new Date(item.createdAt).getMonth();
-        const monthName = new Date(0, month).toLocaleString("default", { month: "short" });
+        const monthName = new Date(0, month).toLocaleString("default", {
+          month: "short",
+        });
 
         if (!acc[monthName]) {
           acc[monthName] = { items: 0, revenue: 0 };
@@ -196,7 +276,10 @@ const Dashboard = () => {
       setMyAuctions((prev) => [...prev, auctionData.auction || auctionData]);
       await fetchDashboardData();
     } catch (error) {
-      setErrors((prev) => ({ ...prev, auctions: error.message || "Failed to create auction" }));
+      setErrors((prev) => ({
+        ...prev,
+        auctions: error.message || "Failed to create auction",
+      }));
       console.error("Create auction error:", error);
     }
   };
@@ -204,12 +287,20 @@ const Dashboard = () => {
   const renderAuctioneerDashboard = () => (
     <>
       {errors.items && (
-        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, items: null }))} dismissible>
+        <Alert
+          variant="danger"
+          onClose={() => setErrors((prev) => ({ ...prev, items: null }))}
+          dismissible
+        >
           {errors.items}
         </Alert>
       )}
       {errors.auctions && (
-        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, auctions: null }))} dismissible>
+        <Alert
+          variant="danger"
+          onClose={() => setErrors((prev) => ({ ...prev, auctions: null }))}
+          dismissible
+        >
           {errors.auctions}
         </Alert>
       )}
@@ -293,15 +384,24 @@ const Dashboard = () => {
               ) : performanceData.length === 0 ? (
                 <Alert variant="info">No sales data available.</Alert>
               ) : (
-                <div style={{ height: "300px" }}>
-                  <ResponsiveContainer width="100%" height="100%">
+                <div style={{ height: "300px", minWidth: "100px" }}>
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={100}
+                    minHeight={300}
+                  >
                     <BarChart data={performanceData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis dataKey="name" />
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="revenue" fill="#4e73df" name="Revenue ($)" />
+                      <Bar
+                        dataKey="revenue"
+                        fill="#4e73df"
+                        name="Revenue ($)"
+                      />
                       <Bar dataKey="items" fill="#1cc88a" name="Items Sold" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -319,7 +419,9 @@ const Dashboard = () => {
                   <Spinner animation="border" />
                 </div>
               ) : myItems.length === 0 ? (
-                <Alert variant="info">No items found. Add items to get started.</Alert>
+                <Alert variant="info">
+                  No items found. Add items to get started.
+                </Alert>
               ) : (
                 <>
                   <Table hover responsive>
@@ -373,7 +475,9 @@ const Dashboard = () => {
               <Spinner animation="border" />
             </div>
           ) : myAuctions.length === 0 ? (
-            <Alert variant="info">No auctions found. Create an auction to get started.</Alert>
+            <Alert variant="info">
+              No auctions found. Create an auction to get started.
+            </Alert>
           ) : (
             <Table hover responsive>
               <thead>
@@ -394,7 +498,12 @@ const Dashboard = () => {
                         {auction.auction_status || "Unknown"}
                       </Badge>
                     </td>
-                    <td>{auction.settings?.item_ids?.length || auction.settings?.item_id ? 1 : 0}</td>
+                    <td>
+                      {auction.settings?.item_ids?.length ||
+                      auction.settings?.item_id
+                        ? 1
+                        : 0}
+                    </td>
                     <td>
                       {new Date(auction.auction_end_time).toLocaleDateString()}
                     </td>
@@ -411,7 +520,9 @@ const Dashboard = () => {
                         <Button
                           variant="outline-success"
                           size="sm"
-                          onClick={() => navigate(`/auctions/${auction._id}/edit`)}
+                          onClick={() =>
+                            navigate(`/auctions/${auction._id}/edit`)
+                          }
                         >
                           Edit
                         </Button>
@@ -430,7 +541,11 @@ const Dashboard = () => {
   const renderBidderDashboard = () => (
     <>
       {errors.bids && (
-        <Alert variant="danger" onClose={() => setErrors((prev) => ({ ...prev, bids: null }))} dismissible>
+        <Alert
+          variant="danger"
+          onClose={() => setErrors((prev) => ({ ...prev, bids: null }))}
+          dismissible
+        >
           {errors.bids}
         </Alert>
       )}
@@ -541,7 +656,9 @@ const Dashboard = () => {
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => navigate(`/items/${bid.item?._id}/bid`)}
+                          onClick={() =>
+                            navigate(`/items/${bid.item?._id}/bid`)
+                          }
                         >
                           Rebid
                         </Button>
@@ -562,7 +679,10 @@ const Dashboard = () => {
               <Card.Title className="mb-3">Your Watchlist</Card.Title>
               <div className="text-center py-5">
                 <p>Your watched items will appear here</p>
-                <Button variant="outline-primary" onClick={() => navigate("/watchlist")}>
+                <Button
+                  variant="outline-primary"
+                  onClick={() => navigate("/watchlist")}
+                >
                   View Watchlist
                 </Button>
               </div>
@@ -575,7 +695,10 @@ const Dashboard = () => {
               <Card.Title className="mb-3">Recommended For You</Card.Title>
               <div className="text-center py-5">
                 <p>Recommended items will appear here</p>
-                <Button variant="outline-primary" onClick={() => navigate("/auctions")}>
+                <Button
+                  variant="outline-primary"
+                  onClick={() => navigate("/auctions")}
+                >
                   Browse Auctions
                 </Button>
               </div>
@@ -663,7 +786,9 @@ const Dashboard = () => {
           <Button
             variant={activeTab === "auctioneer" ? "primary" : "outline-primary"}
             onClick={() =>
-              navigate(activeTab === "auctioneer" ? "/itemListingPage" : "/auctions")
+              navigate(
+                activeTab === "auctioneer" ? "/itemListingPage" : "/auctions"
+              )
             }
           >
             {activeTab === "auctioneer" ? "Add New Item" : "Browse Auctions"}
@@ -677,14 +802,22 @@ const Dashboard = () => {
         >
           <Tab
             eventKey="auctioneer"
-            title={<span><FiUser className="me-1" /> Auctioneer</span>}
-            disabled={!["admin", "auctioneer"].includes(getUserRole())}
+            title={
+              <span>
+                <FiUser className="me-1" /> Auctioneer
+              </span>
+            }
+            disabled={!["admin", "user"].includes(getUserRole())}
           >
             {renderAuctioneerDashboard()}
           </Tab>
           <Tab
             eventKey="bidder"
-            title={<span><FiShoppingBag className="me-1" /> Bidder</span>}
+            title={
+              <span>
+                <FiShoppingBag className="me-1" /> Bidder
+              </span>
+            }
           >
             {renderBidderDashboard()}
           </Tab>

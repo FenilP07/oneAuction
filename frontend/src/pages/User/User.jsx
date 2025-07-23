@@ -18,7 +18,10 @@ const User = () => {
     username: "",
     password: "",
     confirmPassword: "",
-    avatarUrl: "", // Added avatarUrl to state
+    avatarUrl: "",
+    isAnonymous: false,
+    anonymousAvatar: "",
+    anonymousUsername: "",
   });
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
@@ -34,14 +37,15 @@ const User = () => {
     const fetchUserData = async () => {
       try {
         const freshUser = await getUserById(user._id);
-        console.log("Fetched user data:", freshUser); // Debug log
-
         setUserData({
           firstName: freshUser.profile.firstName || "",
           lastName: freshUser.profile.lastName || "",
           email: freshUser.user.email || "",
           username: freshUser.user.username || "",
-          avatarUrl: freshUser.profile.avatarUrl || "", // Include avatarUrl
+          avatarUrl: freshUser.profile.avatarUrl || "",
+          isAnonymous: freshUser.profile.isAnonymous || false,
+          anonymousAvatar: freshUser.profile.anonymousAvatar || "",
+          anonymousUsername: freshUser.profile.anonymousUsername || "",
           password: "",
           confirmPassword: "",
         });
@@ -89,6 +93,7 @@ const User = () => {
         profile: {
           firstName: userData.firstName,
           lastName: userData.lastName,
+          isAnonymous: userData.isAnonymous,
         },
         user: {
           email: userData.email,
@@ -105,21 +110,20 @@ const User = () => {
         </div>
       );
 
-      // Refresh user data to get any updated info
       const freshUser = await getUserById(user._id);
-
-      // Update local state with fresh data
       setUserData({
         firstName: freshUser.profile.firstName || "",
         lastName: freshUser.profile.lastName || "",
         email: freshUser.user.email || "",
         username: freshUser.user.username || "",
         avatarUrl: freshUser.profile.avatarUrl || "",
+        isAnonymous: freshUser.profile.isAnonymous || false,
+        anonymousAvatar: freshUser.profile.anonymousAvatar || "",
+        anonymousUsername: freshUser.profile.anonymousUsername || "",
         password: "",
         confirmPassword: "",
       });
 
-      // Update auth store
       useAuthStore.getState().setUser(freshUser);
     } catch (error) {
       const backendMessage = error.message;
@@ -159,13 +163,15 @@ const User = () => {
     navigate("/login");
   };
 
-  // Generate fallback avatar if none exists
   const getAvatarUrl = () => {
+    if (userData.isAnonymous && userData.anonymousAvatar) {
+      return userData.anonymousAvatar;
+    }
+
     if (userData.avatarUrl) {
       return userData.avatarUrl;
     }
 
-    // Fallback: generate avatar based on user data
     const seed = userData.email || userData.username || "default";
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
       seed
@@ -193,8 +199,13 @@ const User = () => {
               />
             </div>
             <h3 id="user-profile-title">
-              {userData.firstName} {userData.lastName}
-              <span className="text-muted"> ({userData.username})</span>
+              {userData.isAnonymous
+                ? userData.anonymousUsername || "Anonymous User"
+                : `${userData.firstName} ${userData.lastName}`}
+              <span className="text-muted">
+                {" "}
+                ({userData.username})
+              </span>
             </h3>
             <p className="text-muted">{userData.email}</p>
           </div>
@@ -270,6 +281,41 @@ const User = () => {
                   />
                 </div>
               </div>
+
+              {/* <div className="form-check form-switch text-start mt-4">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="isAnonymous"
+                  name="isAnonymous"
+                  checked={userData.isAnonymous}
+                  onChange={(e) =>
+                    setUserData((prev) => ({
+                      ...prev,
+                      isAnonymous: e.target.checked,
+                    }))
+                  }
+                />
+                <label className="form-check-label" htmlFor="isAnonymous">
+                  Enable Anonymous Mode (hide real name & avatar in auctions)
+                </label>
+              </div> */}
+
+              {userData.isAnonymous && (
+                <div className="text-center mt-3">
+                  <strong>Anonymous Display:</strong>
+                  <div className="d-flex align-items-center justify-content-center gap-2 mt-1">
+                    <img
+                      src={userData.anonymousAvatar}
+                      alt="Anonymous avatar"
+                      width={48}
+                      height={48}
+                      className="rounded-circle border"
+                    />
+                    <span>{userData.anonymousUsername || "Anonymous"}</span>
+                  </div>
+                </div>
+              )}
 
               <div className="text-center mt-4">
                 <Button

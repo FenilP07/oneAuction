@@ -27,6 +27,7 @@ import {
 import Navbar from "../../components/Navbar.jsx";
 import Footer from "../../components/Footer.jsx";
 import AuctionPreviewModal from "../../components/AuctionPreviewModal.jsx";
+import AuctionLeaderboardModal from "../../components/AuctionLeaderboardModal.jsx";
 import {
   getAllAuctions,
   getAuctionPreview,
@@ -48,9 +49,7 @@ const BrowseAuctions = () => {
   const [statusFilter, setStatusFilter] = useState(
     searchParams.get("status") || "all"
   );
-  const [sortBy, setSortBy] = useState(
-    searchParams.get("sort") || "starting-soon"
-  );
+  const [sortBy, setSortBy] = useState(searchParams.get("sort") || "newest");
   const [viewMode, setViewMode] = useState(
     localStorage.getItem("viewMode") || "grid"
   );
@@ -75,6 +74,10 @@ const BrowseAuctions = () => {
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState(null);
+
+  // Leaderboard modal state
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState(null);
 
   // Toast notifications
   const [showToast, setShowToast] = useState(false);
@@ -313,7 +316,7 @@ const BrowseAuctions = () => {
     try {
       setPreviewLoading(true);
       setPreviewError(null);
-      setPreviewData(null);
+      setLeaderboardData(null);
 
       const response = await getAuctionLeaderboard(auctionId);
       console.log("Leaderboard response:", response);
@@ -349,7 +352,7 @@ const BrowseAuctions = () => {
         throw new Error("No items found in this auction leaderboard");
       }
 
-      const previewDataToSet = {
+      const leaderboardDataToSet = {
         leaderboard: leaderboardData,
         auction_title: responseData.auction_title || "Auction Results",
         auction_description: responseData.auction_description || "",
@@ -359,12 +362,10 @@ const BrowseAuctions = () => {
         total_items: responseData.total_items || leaderboardData.length,
         auction_id: auctionId,
         status: responseData.auction_status || "completed",
-        is_leaderboard: true,
-        message: response?.message || "Leaderboard retrieved successfully",
       };
 
-      setPreviewData(previewDataToSet);
-      setShowPreview(true); // Only open modal on success
+      setLeaderboardData(leaderboardDataToSet);
+      setShowLeaderboard(true);
       showNotification(
         `Leaderboard loaded with ${leaderboardData.length} items`,
         "success"
@@ -401,21 +402,22 @@ const BrowseAuctions = () => {
       setPreviewLoading(false);
     }
   };
-  const handleViewDetails = (auction) => {
+
+  const handleJoinRoom = (auction) => {
     if (!auction || !auction._id) return;
-
     const type = auction.auctionType_id?.type_name?.toLowerCase();
-
     if (type === "sealed_bid") {
       navigate(`/joinAuction/sealed_bid/${auction._id}`, {
         state: { auction },
       });
-    } else if (auction.status === "active") {
-      navigate(`/joinAuction/${type}/${auction._id}`, {
+    } else if (type === "single_timed_item") {
+      navigate(`/joinAuction/single_timed_item/${auction._id}`, {
         state: { auction },
       });
-    } else {
-      fetchAuctionPreview(auction._id);
+    } else if (type === "live") {
+      navigate(`/joinAuction/live/${auction._id}`, {
+        state: { auction },
+      });
     }
   };
 
@@ -681,202 +683,36 @@ const BrowseAuctions = () => {
                     : "row-cols-1"
                 } g-4`}
               >
-                {auctions.map((auction) => (
-                  <div className="col" key={auction._id}>
-                    <div
-                      className={`card h-100 shadow-sm auction-card ${
-                        viewMode === "list" ? "card-horizontal" : ""
-                      }`}
-                    >
-                      <div className="position-relative">
-                        <span
-                          className={`badge ${getStatusBadgeClass(
-                            auction.status
-                          )} position-absolute top-0 start-0 m-2`}
-                        >
-                          {formatStatus(auction.status)}
-                        </span>
-                        <span className="badge bg-primary position-absolute top-0 end-0 m-2">
-                          {getAuctionTypeName(auction.auctionType_id)}
-                        </span>
-                        <button
-                          className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
-                          onClick={() => toggleFavorite(auction._id)}
-                          title={
-                            favorites.includes(auction._id)
-                              ? "Remove from favorites"
-                              : "Add to favorites"
-                          }
-                        >
-                          <FontAwesomeIcon
-                            icon={faHeart}
-                            className={
-                              favorites.includes(auction._id)
-                                ? "text-danger"
-                                : "text-muted"
-                            }
-                          />
-                        </button>
-                        <div
-                          className={`auction-banner ${
-                            viewMode === "list" ? "list-banner" : ""
-                          }`}
-                          style={{
-                            backgroundImage: `url(${
-                              auction.banner_image || "/default-auction.jpg"
-                            })`,
-                            backgroundSize: "cover",
-                            backgroundPosition: "center",
-                            height: viewMode === "list" ? "150px" : "200px",
-                          }}
-                          onError={(e) => {
-                            e.target.style.backgroundImage =
-                              'url("/default-auction.jpg")';
-                          }}
-                        ></div>
-                      </div>
-                      <div className="card-body">
-                        <h5 className="card-title">
-                          {auction.auction_title || "Untitled Auction"}
-                        </h5>
-                        <p className="card-text text-muted">
-                          {auction.auction_description?.slice(
-                            0,
-                            viewMode === "list" ? 200 : 100
-                          ) || "No description available"}
-                          {auction.auction_description?.length >
-                            (viewMode === "list" ? 200 : 100) && "..."}
-                        </p>
-                        <div
-                          className={`${
-                            viewMode === "list"
-                              ? "d-flex justify-content-between"
-                              : ""
-                          } mb-2`}
-                        >
-                          <div
-                            className={
-                              viewMode === "list"
-                                ? "me-4"
-                                : "d-flex justify-content-between mb-2"
-                            }
+                {auctions.map((auction) => {
+                  const auctionType =
+                    auction.auctionType_id?.type_name?.toLowerCase();
+                  const status = auction.status?.toLowerCase();
+                  const isTimedOrSealed =
+                    auctionType === "single_timed_item" ||
+                    auctionType === "sealed_bid";
+
+                  return (
+                    <div className="col" key={auction._id}>
+                      <div
+                        className={`card h-100 shadow-sm auction-card ${
+                          viewMode === "list" ? "card-horizontal" : ""
+                        }`}
+                      >
+                        <div className="position-relative">
+                          <span
+                            className={`badge ${getStatusBadgeClass(
+                              auction.status
+                            )} position-absolute top-0 start-0 m-2`}
                           >
-                            <div>
-                              <small className="text-muted">
-                                Time Remaining:
-                              </small>
-                              <div className="fw-bold text-primary">
-                                {timerTexts[auction._id] || "--"}
-                              </div>
-                            </div>
-                            <div
-                              className={
-                                viewMode === "list" ? "text-start" : "text-end"
-                              }
-                            >
-                              <small className="text-muted">Bidders:</small>
-                              <div>
-                                <FontAwesomeIcon
-                                  icon={faUsers}
-                                  className="me-1"
-                                />
-                                {auction.settings?.unique_bidders || 0}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="d-flex justify-content-between align-items-center">
-                          <div>
-                            <small className="text-muted">
-                              {auction.auctionType_id?.type_name?.toLowerCase() ===
-                                "single_timed_item" &&
-                              auction.items?.[0]?.current_bid
-                                ? "Current Bid"
-                                : "Starting Bid"}
-                            </small>
-                            <div className="fw-bold">
-                              $
-                              {(auction.auctionType_id?.type_name?.toLowerCase() ===
-                                "single_timed_item" &&
-                              auction.items?.[0]?.current_bid
-                                ? auction.items[0].current_bid
-                                : auction.settings?.reserve_price || 0
-                              ).toLocaleString()}
-                            </div>
-                          </div>
-
-                          <div className="d-flex gap-2">
-                            {auction.auctionType_id?.type_name ===
-                            "sealed_bid" ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewDetails(auction);
-                                }}
-                                className="btn btn-sm btn-success"
-                                disabled={!auction._id}
-                              >
-                                <FontAwesomeIcon
-                                  icon={faGavel}
-                                  className="me-1"
-                                />
-                                Join Room
-                              </button>
-                            ) : auction.status === "active" ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewDetails(auction);
-                                }}
-                                className="btn btn-sm btn-success"
-                                disabled={!auction._id}
-                              >
-                                <FontAwesomeIcon
-                                  icon={faGavel}
-                                  className="me-1"
-                                />
-                                Bid Now
-                              </button>
-                            ) : auction.status === "completed" ? ( // Remove "ended" and "is_leaderboard"
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  fetchAuctionLeaderboard(auction._id);
-                                }}
-                                className="btn btn-sm btn-outline-secondary"
-                                disabled={!auction._id}
-                              >
-                                <FontAwesomeIcon
-                                  icon={faTrophy}
-                                  className="me-1"
-                                />
-                                Leaderboard
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewDetails(auction);
-                                }}
-                                className="btn btn-sm btn-outline-primary"
-                                disabled={!auction._id}
-                              >
-                                <FontAwesomeIcon
-                                  icon={faEye}
-                                  className="me-1"
-                                />
-                                Preview
-                              </button>
-                            )}
-                          </div>
-
+                            {formatStatus(auction.status)}
+                          </span>
+                          <span className="badge bg-primary position-absolute top-0 end-0 m-2">
+                            {getAuctionTypeName(auction.auctionType_id)}
+                          </span>
                           <button
                             className="btn btn-link position-absolute top-0 end-0 me-5 mt-2"
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent event bubbling
-                              toggleFavorite(auction._id);
-                            }}
-                            title={
+                            onClick={() => toggleFavorite(auction._id)}
+                            aria-label={
                               favorites.includes(auction._id)
                                 ? "Remove from favorites"
                                 : "Add to favorites"
@@ -891,11 +727,167 @@ const BrowseAuctions = () => {
                               }
                             />
                           </button>
+                          <div
+                            className={`auction-banner ${
+                              viewMode === "list" ? "list-banner" : ""
+                            }`}
+                            style={{
+                              backgroundImage: `url(${
+                                auction.banner_image || "/default-auction.jpg"
+                              })`,
+                              backgroundSize: "cover",
+                              backgroundPosition: "center",
+                              height: viewMode === "list" ? "150px" : "200px",
+                            }}
+                            onError={(e) => {
+                              e.target.style.backgroundImage =
+                                'url("/default-auction.jpg")';
+                            }}
+                          ></div>
+                        </div>
+                        <div className="card-body">
+                          <h5 className="card-title">
+                            {auction.auction_title || "Untitled Auction"}
+                          </h5>
+                          <p className="card-text text-muted">
+                            {auction.auction_description?.slice(
+                              0,
+                              viewMode === "list" ? 200 : 100
+                            ) || "No description available"}
+                            {auction.auction_description?.length >
+                              (viewMode === "list" ? 200 : 100) && "..."}
+                          </p>
+                          <div
+                            className={`${
+                              viewMode === "list"
+                                ? "d-flex justify-content-between"
+                                : ""
+                            } mb-2`}
+                          >
+                            <div
+                              className={
+                                viewMode === "list"
+                                  ? "me-4"
+                                  : "d-flex justify-content-between mb-2"
+                              }
+                            >
+                              <div>
+                                <small className="text-muted">
+                                  Time Remaining:
+                                </small>
+                                <div className="fw-bold text-primary">
+                                  {timerTexts[auction._id] || "--"}
+                                </div>
+                              </div>
+                              <div
+                                className={
+                                  viewMode === "list"
+                                    ? "text-start"
+                                    : "text-end"
+                                }
+                              >
+                                <small className="text-muted">Bidders:</small>
+                                <div>
+                                  <FontAwesomeIcon
+                                    icon={faUsers}
+                                    className="me-1"
+                                  />
+                                  {auction.settings?.unique_bidders || 0}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                              <small className="text-muted">
+                                {auction.auctionType_id?.type_name?.toLowerCase() ===
+                                  "single_timed_item" &&
+                                auction.items?.[0]?.current_bid
+                                  ? "Current Bid"
+                                  : "Starting Bid"}
+                              </small>
+                              <div className="fw-bold">
+                                $
+                                {(auction.auctionType_id?.type_name?.toLowerCase() ===
+                                  "single_timed_item" &&
+                                auction.items?.[0]?.current_bid
+                                  ? auction.items[0].current_bid
+                                  : auction.settings?.reserve_price || 0
+                                ).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="d-flex gap-2">
+                              {isTimedOrSealed &&
+                                status !== "completed" &&
+                                status !== "cancelled" && (
+                                  <button
+                                    onClick={() =>
+                                      fetchAuctionPreview(auction._id)
+                                    }
+                                    className="btn btn-sm btn-outline-primary"
+                                    disabled={!auction._id}
+                                    aria-label="Preview auction"
+                                  >
+                                    <FontAwesomeIcon
+                                      icon={faEye}
+                                      className="me-1"
+                                    />
+                                    Preview
+                                  </button>
+                                )}
+                              {status === "active" && (
+                                <button
+                                  onClick={() => handleJoinRoom(auction)}
+                                  className="btn btn-sm btn-success"
+                                  disabled={!auction._id}
+                                  aria-label="Join auction room"
+                                >
+                                  <FontAwesomeIcon
+                                    icon={faGavel}
+                                    className="me-1"
+                                  />
+                                  Join Room
+                                </button>
+                              )}
+                              {status === "completed" &&
+                                auctionType === "single_timed_item" && (
+                                  <button
+                                    onClick={() =>
+                                      fetchAuctionLeaderboard(auction._id)
+                                    }
+                                    className="btn btn-sm btn-outline-secondary"
+                                    disabled={!auction._id}
+                                    aria-label="View auction leaderboard"
+                                  >
+                                    <FontAwesomeIcon
+                                      icon={faTrophy}
+                                      className="me-1"
+                                    />
+                                    Leaderboard
+                                  </button>
+                                )}
+                              {status === "completed" &&
+                                auctionType === "sealed_bid" && (
+                                  <button
+                                    onClick={() => handleJoinRoom(auction)}
+                                    className="btn btn-sm btn-outline-secondary"
+                                    disabled={!auction._id}
+                                    aria-label="Reveal sealed bid results"
+                                  >
+                                    <FontAwesomeIcon
+                                      icon={faEye}
+                                      className="me-1"
+                                    />
+                                    Reveal
+                                  </button>
+                                )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {totalPages > 1 && (
                 <div className="d-flex justify-content-center mt-4">
@@ -959,29 +951,163 @@ const BrowseAuctions = () => {
         formatStatus={formatStatus}
       />
 
+      <AuctionLeaderboardModal
+        showLeaderboard={showLeaderboard}
+        setShowLeaderboard={setShowLeaderboard}
+        leaderboardData={leaderboardData}
+        previewLoading={previewLoading}
+        previewError={previewError}
+        auctionTitle={leaderboardData?.auction_title}
+        formatStatus={formatStatus}
+        getStatusBadgeClass={getStatusBadgeClass}
+      />
+
       <ToastContainer position="top-end" className="p-3">
         <Toast
           show={showToast}
           onClose={() => setShowToast(false)}
-          delay={3000}
+          delay={4000}
           autohide
-          bg={toastVariant === "error" ? "danger" : toastVariant}
-        >
-          <Toast.Header>
-            <strong className="me-auto">
-              {toastVariant === "success"
-                ? "Success"
+          style={{
+            backgroundColor:
+              toastVariant === "success"
+                ? "rgba(168, 90, 50, 0.95)"
                 : toastVariant === "error"
-                ? "Error"
-                : "Info"}
-            </strong>
-            <small>just now</small>
+                ? "rgba(139, 69, 19, 0.95)"
+                : "rgba(101, 67, 33, 0.95)",
+            backdropFilter: "blur(10px)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: "15px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+            color: "white",
+            minWidth: "350px",
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <Toast.Header
+            style={{
+              backgroundColor: "transparent",
+              border: "none",
+              color: "white",
+              paddingBottom: "0.5rem",
+            }}
+            closeVariant="white"
+          >
+            <div className="d-flex align-items-center w-100">
+              <div className="d-flex align-items-center">
+                {toastVariant === "success" && (
+                  <svg
+                    className="me-2"
+                    width="20"
+                    height="20"
+                    fill="white"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+                {toastVariant === "error" && (
+                  <svg
+                    className="me-2"
+                    width="20"
+                    height="20"
+                    fill="white"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+                {(toastVariant === "info" || !toastVariant) && (
+                  <svg
+                    className="me-2"
+                    width="20"
+                    height="20"
+                    fill="#f4a460"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+                <strong className="fw-bold">
+                  {toastVariant === "success"
+                    ? "Success"
+                    : toastVariant === "error"
+                    ? "Error"
+                    : "Info"}
+                </strong>
+              </div>
+              <small
+                className="ms-auto"
+                style={{ color: "rgba(255, 255, 255, 0.7)" }}
+              >
+                just now
+              </small>
+            </div>
           </Toast.Header>
-          <Toast.Body className={toastVariant === "error" ? "text-white" : ""}>
+
+          <Toast.Body
+            style={{ color: "white", paddingTop: "0.25rem", lineHeight: "1.5" }}
+          >
             {toastMessage}
           </Toast.Body>
+
+          {/* Progress bar */}
+          <div
+            className="progress-bar-container"
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "3px",
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+              borderRadius: "0 0 15px 15px",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              className="progress-bar-fill"
+              style={{
+                height: "100%",
+                backgroundColor:
+                  toastVariant === "success"
+                    ? "#a85a32"
+                    : toastVariant === "error"
+                    ? "#8b4513"
+                    : "#d2691e",
+                animation: "shrinkProgress 4s linear forwards",
+                width: "100%",
+              }}
+            />
+          </div>
         </Toast>
       </ToastContainer>
+
+      <style>
+        {`
+  @keyframes shrinkProgress {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
+  
+  .btn-close-white {
+    filter: invert(1) grayscale(100%) brightness(200%);
+  }
+`}
+      </style>
 
       <Footer />
     </>

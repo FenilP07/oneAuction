@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faGavel, faClock } from "@fortawesome/free-solid-svg-icons";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+import EndAuctionEarlyButton from "../../components/EndAuctionEarly.jsx";
 import {
   Form,
   Button,
@@ -23,16 +24,14 @@ import {
   placeSealedBid,
   placeTimedBid,
   getSealedBidLeaderboard,
-  revealSealedBids
+  revealSealedBids,
 } from "../../services/auctionService.js";
 import useAuthStore from "../../store/authStore.js";
-// Import your custom hooks
 import { useAuctionData } from "../../hooks/useAuctionData.jsx";
 import { useAuctionSocket } from "../../hooks/useAuctionSocket.jsx";
 import { useAuctionTimer } from "../../hooks/useAuctionTimer.jsx";
 import { useBidCalculations } from "../../hooks/useBidCalculation.jsx";
 import { useNotification } from "../../hooks/useNotification.jsx";
-// Import your new components
 import AuctionDescription from "../../components/AuctionDescription.jsx";
 import AuctionTimer from "../../components/AuctionTimer.jsx";
 import CurrentBidDisplay from "../../components/CurrentBidDisplay.jsx";
@@ -41,7 +40,7 @@ import ErrorBoundary from "../../components/ErrorBoundary.jsx";
 import NotificationToast from "../../components/NotificationToast.jsx";
 import "./joinAuction.css";
 
-// Enhanced Bid Form Component (inline since it uses multiple hooks)
+// Enhanced Bid Form Component
 const EnhancedBidForm = React.memo(
   ({
     auction,
@@ -81,7 +80,6 @@ const EnhancedBidForm = React.memo(
       [minBid, auctionType]
     );
 
-    // Update bid amount when auction data changes
     useEffect(() => {
       if (auction && auctionType === "single_timed_item") {
         setBidAmount(minBid);
@@ -128,7 +126,6 @@ const EnhancedBidForm = React.memo(
         );
         onBidSuccess(bidAmount);
 
-        // Reset form for timed auctions or update next bid
         if (auctionType === "single_timed_item") {
           const nextBid = minBid + (auction.settings?.min_bid_increment || 0);
           setBidAmount(nextBid);
@@ -246,111 +243,119 @@ const EnhancedBidForm = React.memo(
   }
 );
 
-// Sealed Bid Results Component (keeping original functionality)
-const SealedBidResults = React.memo(({ auctionId, isEnded, onError }) => {
-  const [isRevealed, setIsRevealed] = useState(false);
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [funStats, setFunStats] = useState(null);
-  const [loading, setLoading] = useState(false);
+// Sealed Bid Results Component
+const SealedBidResults = React.memo(
+  ({ auctionId, isEnded, onError, userId, isAuctioneer }) => {
+    const [isRevealed, setIsRevealed] = useState(false);
+    const [leaderboard, setLeaderboard] = useState([]);
+    const [funStats, setFunStats] = useState(null);
+    const [loading, setLoading] = useState(false);
 
-  const handleReveal = async () => {
-    setLoading(true);
-    try {
-      // 1. Call reveal API to unlock bids on server
-      await revealSealedBids(auctionId);
+    const handleReveal = useCallback(async () => {
+      setLoading(true);
+      try {
+        await revealSealedBids(auctionId);
+        const data = await getSealedBidLeaderboard(auctionId);
+        setLeaderboard(data.leaderboard || []);
+        setFunStats(data.stats || null);
+        setIsRevealed(true);
 
-      // 2. Fetch updated leaderboard with decrypted bids
-      const data = await getSealedBidLeaderboard(auctionId);
+        // Optional: confetti effect
+        const confettiScript = document.createElement("script");
+        confettiScript.src =
+          "https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js";
+        confettiScript.onload = () =>
+          window.confetti({
+            particleCount: 150,
+            spread: 70,
+            origin: { y: 0.6 },
+          });
+        document.body.appendChild(confettiScript);
+      } catch (err) {
+        onError(err.message || "Failed to reveal leaderboard");
+      } finally {
+        setLoading(false);
+      }
+    }, [auctionId, onError]);
 
-      setLeaderboard(data.leaderboard || []);
-      setFunStats(data.stats || null);
-      setIsRevealed(true);
+    // Automatically reveal results for auctioneer when auction ends
+    useEffect(() => {
+      if (isEnded && isAuctioneer && !isRevealed && !loading) {
+        handleReveal();
+      }
+    }, [isEnded, isAuctioneer, isRevealed, handleReveal, loading]);
 
-      // Optional: confetti effect
-      const confettiScript = document.createElement("script");
-      confettiScript.src =
-        "https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js";
-      confettiScript.onload = () =>
-        window.confetti({
-          particleCount: 150,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
-      document.body.appendChild(confettiScript);
-    } catch (err) {
-      onError(err.message || "Failed to reveal leaderboard");
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!isEnded) return null;
 
-  if (!isEnded) return null;
-
-  return (
-    <>
-      {!isRevealed && (
-        <Button
-          variant="success"
-          className="w-100 mb-3"
-          size="lg"
-          onClick={handleReveal}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <Spinner animation="border" size="sm" /> Revealing...
-            </>
-          ) : (
-            "Reveal Results"
-          )}
-        </Button>
-      )}
-
-      {isRevealed && leaderboard.length > 0 && (
-        <Card className="mb-4 shadow-sm rounded slide-in">
-          <Card.Body>
-            <Card.Title as="h5">Leaderboard</Card.Title>
-            <Table hover responsive striped bordered>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Bidder</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((bid, idx) => (
-                  <tr
-                    key={idx}
-                    className={bid.is_winner ? "table-success" : ""}
-                  >
-                    <td>{idx + 1}</td>
-                    <td>{bid.bidder_username || "Anonymous"}</td>
-                    <td>${bid.amount?.toLocaleString() || "N/A"}</td>
-                    <td>
-                      {bid.is_winner && <Badge bg="success">Winner!</Badge>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-            {funStats && (
-              <div className="small text-muted">
-                <strong>Fun Stats:</strong>
-                <ul>
-                  <li>Total Bids: {funStats.totalBids}</li>
-                  <li>Average Bid: ${funStats.averageBid.toFixed(2)}</li>
-                  <li>Highest Bid: ${funStats.highestBid.toLocaleString()}</li>
-                </ul>
-              </div>
+    return (
+      <>
+        {!isRevealed && !isAuctioneer && (
+          <Button
+            variant="success"
+            className="w-100 mb-3"
+            size="lg"
+            onClick={handleReveal}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Spinner animation="border" size="sm" /> Revealing...
+              </>
+            ) : (
+              "Reveal Results"
             )}
-          </Card.Body>
-        </Card>
-      )}
-    </>
-  );
-});
+          </Button>
+        )}
+
+        {isRevealed && leaderboard.length > 0 && (
+          <Card className="mb-4 shadow-sm rounded slide-in">
+            <Card.Body>
+              <Card.Title as="h5">Leaderboard</Card.Title>
+              <Table hover responsive striped bordered>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Bidder</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboard.map((bid, idx) => (
+                    <tr
+                      key={idx}
+                      className={bid.is_winner ? "table-success" : ""}
+                    >
+                      <td>{idx + 1}</td>
+                      <td>{bid.bidder_username || "Anonymous"}</td>
+                      <td>${bid.amount?.toLocaleString() || "N/A"}</td>
+                      <td>
+                        {bid.is_winner && <Badge bg="success">Winner!</Badge>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+              {funStats && (
+                <div className="small text-muted">
+                  <strong>Fun Stats:</strong>
+                  <ul>
+                    <li>Total Bids: {funStats.totalBids}</li>
+                    <li>Average Bid: ${funStats.averageBid.toFixed(2)}</li>
+                    <li>
+                      Highest Bid: ${funStats.highestBid.toLocaleString()}
+                    </li>
+                  </ul>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        )}
+      </>
+    );
+  }
+);
+
 // Loading States
 const AuthLoadingState = () => (
   <>
@@ -397,6 +402,7 @@ const JoinAuction = () => {
 
   // Local state
   const [pulseKey, setPulseKey] = useState(0);
+  const [isAuctionEnded, setIsAuctionEnded] = useState(false);
 
   // Custom hooks
   const {
@@ -409,9 +415,7 @@ const JoinAuction = () => {
     updateAuctionWithBid,
   } = useAuctionData(auction_id, userId);
 
-  const { timer, isEnded: isAuctionEnded } = useAuctionTimer(
-    auction?.auction_end_time
-  );
+  const { timer } = useAuctionTimer(auction?.auction_end_time, isAuctionEnded);
 
   const { currentBid, minBid, startingBid, nextBidSuggestions } =
     useBidCalculations(auction, auctionType);
@@ -424,7 +428,7 @@ const JoinAuction = () => {
     hideNotification,
   } = useNotification();
 
-  // Memoized calculations for performance
+  // Memoized calculations
   const memoizedCurrentBid = useMemo(() => {
     if (!auction) return 0;
     return Math.max(
@@ -437,22 +441,52 @@ const JoinAuction = () => {
     return auction?.items[0]?.starting_bid || 0;
   }, [auction]);
 
-  // Socket connection with callbacks
+  const isAuctioneer = useMemo(() => {
+    return auction?.auctioneer_id?._id === userId;
+  }, [auction?.auctioneer_id?._id, userId]);
+
+  // Socket event handlers
   const handleBidUpdate = useCallback(
     (updatedBid) => {
       updateAuctionWithBid(updatedBid);
       setPulseKey((prev) => prev + 1);
+      showNotification("New bid placed!", "info");
     },
-    [updateAuctionWithBid]
+    [updateAuctionWithBid, showNotification]
   );
 
+  const handleAuctionEndedEarly = useCallback(
+    (data) => {
+      console.log("Auction ended early:", data);
+      setIsAuctionEnded(true);
+      fetchAuction();
+      showNotification(
+        `Auction "${
+          auction?.auction_title || "Unknown"
+        }" ended early at ${new Date(data.ended_at).toLocaleTimeString()}!`,
+        "info"
+      );
+      setPulseKey((prev) => prev + 1);
+    },
+    [fetchAuction, showNotification, auction?.auction_title]
+  );
+
+  // Socket connection
   useAuctionSocket(
     auctionType,
     auction_id,
     accessToken,
     handleBidUpdate,
+    handleAuctionEndedEarly,
     showNotification
   );
+
+  // Synchronize isAuctionEnded with auction status
+  useEffect(() => {
+    if (auction?.auction_status === "completed") {
+      setIsAuctionEnded(true);
+    }
+  }, [auction?.auction_status]);
 
   // Event handlers
   const handleBidSuccess = useCallback(
@@ -473,11 +507,26 @@ const JoinAuction = () => {
     [showNotification]
   );
 
+  const handleEndAuctionSuccess = useCallback(
+    (result) => {
+      showNotification("Auction ended successfully!", "success");
+      setIsAuctionEnded(true);
+      fetchAuction();
+    },
+    [showNotification, fetchAuction]
+  );
+
+  const handleEndAuctionError = useCallback(
+    (error) => {
+      showNotification(error, "danger");
+    },
+    [showNotification]
+  );
+
   // Authentication check
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate("/login");
-      return;
     }
   }, [isAuthenticated, navigate]);
 
@@ -488,7 +537,6 @@ const JoinAuction = () => {
       !["sealed_bid", "single_timed_item"].includes(auctionType)
     ) {
       navigate("/browse-auctions");
-      return;
     }
   }, [auctionType, auction_id, navigate]);
 
@@ -564,6 +612,12 @@ const JoinAuction = () => {
                     onError={handleBidError}
                     isEnded={isAuctionEnded}
                   />
+                  <EndAuctionEarlyButton
+                    auction={auction}
+                    userId={userId}
+                    onEndSuccess={handleEndAuctionSuccess}
+                    onError={handleEndAuctionError}
+                  />
                 </Card.Body>
               </Card>
             )}
@@ -581,6 +635,8 @@ const JoinAuction = () => {
                 auctionId={auction_id}
                 isEnded={isAuctionEnded}
                 onError={handleBidError}
+                userId={userId}
+                isAuctioneer={isAuctioneer}
               />
             )}
           </div>

@@ -34,7 +34,7 @@ export const loginUser = async (formData) => {
 export const requestPasswordReset = async (formData) => {
   try {
     const response = await apiClient.post('/user/request-password-reset', formData);
-    return response.data;
+    return response.data.data;
   } catch (error) {
     const message = error.message || 'Failed to send reset email. Please try again.';
     console.error('Password reset request error:', message);

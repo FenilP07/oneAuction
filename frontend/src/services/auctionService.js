@@ -242,7 +242,20 @@ const getSealedBidLeaderboard = async (auctionId) => {
     const message =
       error.response?.data?.message ||
       "Failed to fetch sealed bid leaderboard.";
+    apiClient;
     console.error("Get sealed bid leaderboard error:", message);
+    throw new Error(message);
+  }
+};
+const endAuctionEarly = async (auctionId) => {
+  try {
+    const response = await apiClient.patch(`/auction/end/${auctionId}`);
+    return response.data.data || response.data;
+  } catch (error) {
+    const message =
+      error.response?.data?.message || error.message || "Failed to end auction";
+
+    console.error("End auction early error:", message);
     throw new Error(message);
   }
 };
@@ -260,4 +273,5 @@ export {
   getMyBids,
   getMyAuctions,
   getSealedBidLeaderboard,
+  endAuctionEarly,
 };
