@@ -576,7 +576,7 @@ const JoinAuction = () => {
           <Alert variant="danger" className="text-center" role="alert">
             <h4>Error</h4>
             <p>{error}</p>
-            <Button onClick={() => navigate("/browse-auctions")}>
+            <Button onClick={() => navigate("/browseAuctions")}>
               Back to Auctions
             </Button>
           </Alert>

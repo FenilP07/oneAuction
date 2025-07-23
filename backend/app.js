@@ -29,6 +29,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:5173",
+  "http://localhost:5174",
   "http://localhost:3000",
   "https://4e8b4fafd5b6.ngrok-free.app",
   "https://oneauctionbackend.onrender.com",
