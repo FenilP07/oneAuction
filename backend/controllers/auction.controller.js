@@ -13,7 +13,7 @@ import { auctionNamespace, redisClient } from "../app.js";
 import crypto from "crypto";
 import AuctionType from "../models/auctionTypes.models.js";
 import { encryptAmount, decryptAmount } from "../utils/encryption.js";
-import emitAuctionStatusUpdate from "../utils/socketUtils.js"
+import {emitAuctionStatusUpdate} from "../utils/socketUtils.js"
 
 const formatTimeLeft = (ms) => {
   if (ms <= 0) return "Ended";
